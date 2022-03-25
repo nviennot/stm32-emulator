@@ -19,9 +19,8 @@ impl SysTick {
     }
 }
 
-
 impl Peripheral for SysTick {
-    fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32, _size: usize) -> u32 {
+    fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
         if offset == 0x0004 {
             self.reload
         } else if offset == 0x0008 {
@@ -32,7 +31,7 @@ impl Peripheral for SysTick {
         }
     }
 
-    fn write(&mut self, _uc: &mut Unicorn<()>, offset: u32, _size: usize, value: u32) {
+    fn write(&mut self, _uc: &mut Unicorn<()>, offset: u32, value: u32) {
         if offset == 0x0004 {
             // LOAD register
             self.reload = value

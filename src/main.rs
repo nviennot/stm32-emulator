@@ -24,13 +24,17 @@ extern crate log;
 #[clap(
     global_setting(AppSettings::DeriveDisplayOrder)
 )]
-struct Args {
+pub struct Args {
     /// Config file
     config: String,
 
-    // Verbosity. Can be repeated
+    /// Verbosity. Can be repeated
     #[clap(short, long, parse(from_occurrences))]
-    verbose: u8
+    verbose: u8,
+
+    /// Max instruction counts
+    #[clap(short, long)]
+    max_instructions: Option<u64>,
 }
 
 
@@ -83,5 +87,5 @@ fn main() -> Result<()> {
     let device = svd_parser::parse(&read_file_str(&config.cpu.svd)?)
         .with_context(|| format!("Failed to parse {}", config.cpu.svd))?;
 
-    run_emulator(config, device)
+    run_emulator(config, device, args)
 }

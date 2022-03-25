@@ -19,7 +19,7 @@ impl Spi {
 
 
 impl Peripheral for Spi {
-    fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32, _size: usize) -> u32 {
+    fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
         if offset == 0x0008 {
             // SR register
             // receive buffer not empty
@@ -30,6 +30,6 @@ impl Peripheral for Spi {
         }
     }
 
-    fn write(&mut self, _uc: &mut Unicorn<()>, _offset: u32, _size: usize, _value: u32) {
+    fn write(&mut self, _uc: &mut Unicorn<()>, _offset: u32, _value: u32) {
     }
 }

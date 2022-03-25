@@ -1,7 +1,7 @@
 use std::{collections::HashMap, mem::MaybeUninit, cell::RefCell, rc::Rc, sync::atomic::{AtomicU64, Ordering}};
 use svd_parser::svd::Device;
 use unicorn_engine::{unicorn_const::{Arch, Mode, Permission, HookType, uc_error}, Unicorn, RegisterARM};
-use crate::{config::Config, util::{round_up, UniErr, read_file}, peripherals::Peripherals};
+use crate::{config::Config, util::{round_up, UniErr, read_file}, peripherals::Peripherals, Args};
 use anyhow::{Context, Result};
 
 #[repr(C)]
@@ -51,7 +51,6 @@ pub fn init_peripherals(uc: &mut Unicorn<()>, mut device: Device) -> Result<Rc<R
     let mut peripherals = Peripherals::new();
 
     device.peripherals.sort_by_key(|f| f.base_address);
-
     let svd_peripherals = device.peripherals.iter()
         .map(|d| (d.name.to_string(), d))
         .collect::<HashMap<_,_>>();
@@ -79,10 +78,10 @@ pub fn init_peripherals(uc: &mut Unicorn<()>, mut device: Device) -> Result<Rc<R
         let read_peripherals = peripherals.clone();
         let write_peripherals = peripherals.clone();
         let read_cb =  move |uc: &mut Unicorn<'_, ()>, addr, size| {
-            read_peripherals.borrow_mut().read(uc, start + addr as u32, size) as u64
+            read_peripherals.borrow_mut().read(uc, start + addr as u32, size as u8) as u64
         };
         let write_cb = move |uc: &mut Unicorn<'_, ()>, addr, size, value| {
-            write_peripherals.borrow_mut().write(uc, start + addr as u32, size, value as u32)
+            write_peripherals.borrow_mut().write(uc, start + addr as u32, size as u8, value as u32)
         };
 
         uc.mmio_map(start as u64, (end-start) as usize, Some(read_cb), Some(write_cb))
@@ -100,7 +99,7 @@ fn thumb(pc: u64) -> u64 {
 static mut LAST_INSTRUCTION: (u32, u8) = (0,0);
 pub static NUM_INSTRUCTIONS: AtomicU64 = AtomicU64::new(0);
 
-pub fn run_emulator(config: Config, device: Device) -> Result<()> {
+pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
     let mut uc = Unicorn::new(Arch::ARM, Mode::MCLASS | Mode::LITTLE_ENDIAN)
         .map_err(UniErr).context("Failed to initialize Unicorn instance")?;
 
@@ -173,7 +172,12 @@ pub fn run_emulator(config: Config, device: Device) -> Result<()> {
     let mut pc = vector_table.reset as u64;
 
     loop {
-        let result = uc.emu_start(pc, 0, 0, 0).map_err(UniErr);
+        let max_instructions = args.max_instructions.map(|c| c - NUM_INSTRUCTIONS.load(Ordering::Relaxed));
+        if max_instructions == Some(0) {
+            info!("Done");
+            break;
+        }
+        let result = uc.emu_start(pc, 0, 0, max_instructions.unwrap_or(0) as usize).map_err(UniErr);
         pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
         if result.is_ok() || matches!(result, Err(UniErr(uc_error::WRITE_UNMAPPED)) | Err(UniErr(uc_error::READ_UNMAPPED))) {
             trace!("Resuming execution pc={:08x}", pc);
@@ -184,4 +188,6 @@ pub fn run_emulator(config: Config, device: Device) -> Result<()> {
         warn!("Execution abort. pc = 0x{:08x}", pc);
         result?;
     }
+
+    Ok(())
 }

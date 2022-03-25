@@ -38,7 +38,7 @@ impl Peripherals {
     pub fn register_peripheral(&mut self, name: String, base: u32, registers: &[MaybeArray<RegisterInfo>]) {
         let p = GenericPeripheral::new(name.clone(), registers);
 
-        debug!("Peripheral base=0x{:08x} name={}", base, p.name());
+        debug!("Peripheral base=0x{:08x} size=0x{:08} name={}", base, p.size(), p.name());
 
         if let Some(last_p) = self.debug_peripherals.last() {
             assert!(last_p.start < base, "Register blocks must be sorted");
@@ -77,35 +77,72 @@ impl Peripherals {
         }
     }
 
-    pub fn read(&mut self, uc: &mut Unicorn<()>, addr: u32, size: usize) -> u32 {
+    pub fn read(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8) -> u32 {
+        //let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
+        //trace!("X read:  pc=0x{:08x} addr=0x{:08x} size={}", pc, addr, size);
+
+        if (0x4200_0000..0x4400_0000).contains(&addr) {
+            // Bit-banding
+            let bit_number = (addr % 32) / 4;
+            let addr = 0x4000_0000 + (addr - 0x4200_0000)/32;
+            return (self.read(uc, addr, 1) >> bit_number) & 1
+        }
+
+        // Reduce the reads to 4 byte alignements
+        let byte_offset = (addr % 4) as u8;
+        assert!(byte_offset + size <= 4);
+        let addr = addr - byte_offset as u32;
+
         if log::log_enabled!(log::Level::Trace) {
             let desc = self.addr_desc(uc, addr);
             trace!("read:  {}", desc);
         }
 
         if let Some(p) = Self::get_peripheral(&mut self.peripherals, addr) {
-            p.peripheral.read(uc, addr - p.start, size)
+            p.peripheral.read(uc, addr - p.start) << (8*byte_offset)
         } else {
             0
         }
     }
 
-    pub fn write(&mut self, uc: &mut Unicorn<()>, addr: u32, size: usize, value: u32) {
+    pub fn write(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8, mut value: u32) {
+        //let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
+        //trace!("X write: pc=0x{:08x} addr=0x{:08x} size={}", pc, addr, size);
+
+        if (0x4200_0000..0x4400_0000).contains(&addr) {
+            // Bit-banding
+            let bit_number = (addr % 32) / 4;
+            let addr = 0x4000_0000 + (addr - 0x4200_0000)/32;
+            let mut v = self.read(uc, addr, 1);
+            v &= 1 << bit_number;
+            v |= (value & 1) << bit_number;
+            return self.write(uc, addr, 1, v);
+        }
+
+        // Reduce the writes to 4 byte alignements
+        let byte_offset = (addr % 4) as u8;
+        assert!(byte_offset + size <= 4);
+        let addr = addr - byte_offset as u32;
+
+        if byte_offset != 0 {
+            let v = self.read(uc, addr, 4);
+            value = (value << 8*byte_offset) | (v & (0xFFFF_FFFF >> (32-8*byte_offset)));
+        }
+
         if log::log_enabled!(log::Level::Trace) {
             let desc = self.addr_desc(uc, addr);
-            let value = value << 8*(addr % 4);
             trace!("write: {} value=0x{:08x}", desc, value);
         }
 
         if let Some(p) = Self::get_peripheral(&mut self.peripherals, addr) {
-            p.peripheral.write(uc, addr - p.start, size, value)
+            p.peripheral.write(uc, addr - p.start, value)
         }
     }
 }
 
 pub trait Peripheral {
-    fn read(&mut self, uc: &mut Unicorn<()>, offset: u32, size: usize) -> u32;
-    fn write(&mut self, uc: &mut Unicorn<()>, offset: u32, size: usize, value: u32);
+    fn read(&mut self, uc: &mut Unicorn<()>, offset: u32) -> u32;
+    fn write(&mut self, uc: &mut Unicorn<()>, offset: u32, value: u32);
 }
 
 struct GenericPeripheral {
@@ -124,7 +161,7 @@ impl GenericPeripheral {
     }
 
     pub fn reg_name(&self, offset: u32) -> String {
-        let offset = offset - offset % 4;
+        assert!(offset % 4 == 0);
         let reg = self.registers.get(&offset);
         reg.map(|r| r.display_name.as_ref().unwrap_or(&r.name))
             .map(|r| format!("{} offset=0x{:04x}", r, offset))

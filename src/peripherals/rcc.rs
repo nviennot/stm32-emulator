@@ -18,7 +18,7 @@ impl Rcc {
 
 
 impl Peripheral for Rcc {
-    fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32, _size: usize) -> u32 {
+    fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
         if offset == 0 {
             // CR register
             // Return all the r to true. This is where the PLL ready flags are.
@@ -32,6 +32,6 @@ impl Peripheral for Rcc {
         }
     }
 
-    fn write(&mut self, _uc: &mut Unicorn<()>, _offset: u32, _size: usize, _value: u32) {
+    fn write(&mut self, _uc: &mut Unicorn<()>, _offset: u32, _value: u32) {
     }
 }
