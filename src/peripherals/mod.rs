@@ -1,8 +1,12 @@
 mod rcc;
-use std::collections::BTreeMap;
+mod spi;
+mod systick;
 
 use rcc::*;
+use spi::*;
+use systick::*;
 
+use std::collections::BTreeMap;
 use svd_parser::svd::{RegisterInfo, MaybeArray};
 use unicorn_engine::{Unicorn, RegisterARM};
 
@@ -46,8 +50,11 @@ impl Peripherals {
 
         self.debug_peripherals.push(PeripheralSlot { start, end, peripheral: p });
 
-        let p = if Rcc::use_peripheral(&name) { Some(Box::new(Rcc::new(name, registers))) }
-        else { None };
+        let p: Option<Box<dyn Peripheral>> =
+                 if     Rcc::use_peripheral(&name) { Some(Box::new(    Rcc::new(name, registers))) }
+            else if     Spi::use_peripheral(&name) { Some(Box::new(    Spi::new(name, registers))) }
+            else if SysTick::use_peripheral(&name) { Some(Box::new(SysTick::new(name, registers))) }
+            else { None };
 
         if let Some(p) = p{
             self.peripherals.push(PeripheralSlot { start, end, peripheral: p });
@@ -64,9 +71,9 @@ impl Peripherals {
     pub fn addr_desc(&mut self, uc: &mut Unicorn<()>, addr: u32) -> String {
         let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
         if let Some(p) = Self::get_peripheral(&mut self.debug_peripherals, addr) {
-            format!("pc=0x{:08x} addr=0x{:08x} block={} reg={}", pc, addr, p.peripheral.name, p.peripheral.reg_name(addr - p.start))
+            format!("pc=0x{:08x} addr=0x{:08x} peri={} reg={}", pc, addr, p.peripheral.name, p.peripheral.reg_name(addr - p.start))
         } else {
-            format!("pc=0x{:08x} addr=0x{:08x} block=????", pc, addr)
+            format!("pc=0x{:08x} addr=0x{:08x} peri=????", pc, addr)
         }
     }
 
@@ -136,4 +143,3 @@ impl GenericPeripheral {
             .unwrap_or(0) + 4
     }
 }
-

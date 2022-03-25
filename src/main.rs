@@ -4,11 +4,11 @@ mod util;
 mod peripherals;
 
 use std::io::prelude::*;
-use std::time::Instant;
-
+use std::sync::atomic::Ordering::Relaxed;
 use clap::Parser;
 use clap::AppSettings;
 use anyhow::{Result, Context};
+use env_logger::fmt::Color;
 use log::LevelFilter;
 
 use config::Config;
@@ -33,6 +33,7 @@ struct Args {
     verbose: u8
 }
 
+
 fn init_logging(level: u8) {
     let lf = match level {
         0 => LevelFilter::Info,
@@ -40,18 +41,34 @@ fn init_logging(level: u8) {
         _ => LevelFilter::Trace,
     };
 
-    lazy_static::lazy_static! {
-         static ref START_TIME: Instant = Instant::now();
-    }
-
-    lazy_static::initialize(&START_TIME);
+    static mut LAST_NUM_INSTRUCTIONS: u64 = 0;
 
     env_logger::Builder::new()
         .filter_level(lf)
+        .target(env_logger::Target::Stdout)
         .format(|buf, record| {
-            let time = Instant::now().duration_since(*START_TIME);
-            let time = (time.as_millis() as f32)/1000.0;
-            writeln!(buf, "[{:02.3}s] {}", time, record.args())
+            let num_instructions = emulator::NUM_INSTRUCTIONS.load(Relaxed);
+            let delta_instructions = num_instructions - unsafe { LAST_NUM_INSTRUCTIONS };
+            unsafe { LAST_NUM_INSTRUCTIONS = num_instructions };
+
+            let mut style = buf.style();
+            let level = match record.level() {
+                log::Level::Error => style.set_color(Color::Red).set_intense(true).value("ERROR"),
+                log::Level::Warn =>  style.set_color(Color::Yellow).set_intense(true).value("WARN "),
+                log::Level::Info =>  style.set_color(Color::Green).set_intense(true).value("INFO "),
+                log::Level::Debug => style.set_color(Color::Cyan).set_intense(true).value("DEBUG"),
+                log::Level::Trace => style.set_color(Color::Blue).set_intense(true).value("TRACE"),
+            };
+
+            let mut style = buf.style();
+            match delta_instructions {
+                0..=299    => { }
+                300..=2999 => { style.set_color(Color::Yellow); }
+                3000..     => { style.set_color(Color::Magenta); }
+            }
+            let delta_instructions = style.value(delta_instructions);
+
+            writeln!(buf, "[{:08} +{:08}] {} {}", num_instructions, delta_instructions, level, record.args())
         })
         .init();
 }

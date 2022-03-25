@@ -12,3 +12,10 @@ regions:
   - name: RAM
     start: 0x20000000
     size: 0x20000
+patches:
+  # NOP a delay_us()
+  - start: 0x08051e98
+    data: [0x70, 0x47]
+  # NOP systick delay
+  - start: 0x08051ee8
+    data: [0x70, 0x47]

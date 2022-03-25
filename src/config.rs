@@ -9,6 +9,12 @@ pub struct Region {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct Patch {
+   pub start: u32,
+   pub data: Vec<u8>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Cpu {
     pub svd: String,
     pub vector_table: u32,
@@ -18,4 +24,5 @@ pub struct Cpu {
 pub struct Config {
    pub cpu: Cpu,
    pub regions: Vec<Region>,
+   pub patches: Option<Vec<Patch>>,
 }
