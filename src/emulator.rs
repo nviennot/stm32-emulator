@@ -42,9 +42,11 @@ pub fn load_memory_regions(uc: &mut Unicorn<()>, config: &Config) -> Result<()> 
 }
 
 pub fn init_peripherals(uc: &mut Unicorn<()>, mut device: Device) -> Result<Rc<RefCell<Peripherals>>> {
+    let mut peripherals = Peripherals::new();
+
     device.peripherals.sort_by_key(|f| f.base_address);
 
-    let peripherals = device.peripherals.iter()
+    let svd_peripherals = device.peripherals.iter()
         .map(|d| (d.name.to_string(), d))
         .collect::<HashMap<_,_>>();
 
@@ -53,19 +55,17 @@ pub fn init_peripherals(uc: &mut Unicorn<()>, mut device: Device) -> Result<Rc<R
         let base = p.base_address;
 
         let p = if let Some(derived_from) = p.derived_from.as_ref() {
-            peripherals.get(derived_from)
+            svd_peripherals.get(derived_from)
                 .as_ref()
                 .unwrap_or_else(|| panic!("Cannot find peripheral {}", derived_from))
         } else {
             p
         };
 
-        for reg in p.all_registers() {
-            debug!("Peripheral base=0x{:x} name={:?} reg={:?} offset={:x?}", base, name, reg.display_name, reg.address_offset);
-        }
+        let regs: Vec<_> = p.all_registers().cloned().collect();
+        peripherals.register_peripheral(name.to_string(), base as u32, &regs);
     }
 
-    let peripherals = Peripherals::new();
 
     let peripherals = Rc::new(RefCell::new(peripherals));
 
@@ -73,10 +73,10 @@ pub fn init_peripherals(uc: &mut Unicorn<()>, mut device: Device) -> Result<Rc<R
         let read_peripherals = peripherals.clone();
         let write_peripherals = peripherals.clone();
         let read_cb =  move |uc: &mut Unicorn<'_, ()>, addr, size| {
-            read_peripherals.borrow_mut().read(uc, start + addr as u32) as u64
+            read_peripherals.borrow_mut().read(uc, start + addr as u32, size) as u64
         };
         let write_cb = move |uc: &mut Unicorn<'_, ()>, addr, size, value| {
-            write_peripherals.borrow_mut().write(uc, start + addr as u32, value as u32)
+            write_peripherals.borrow_mut().write(uc, start + addr as u32, size, value as u32)
         };
 
         uc.mmio_map(start as u64, (end-start) as usize, Some(read_cb), Some(write_cb))
@@ -86,30 +86,81 @@ pub fn init_peripherals(uc: &mut Unicorn<()>, mut device: Device) -> Result<Rc<R
     Ok(peripherals)
 }
 
+fn thumb(pc: u64) -> u64 {
+    pc | 1
+}
+
 pub fn run_emulator(config: Config, device: Device) -> Result<()> {
-    let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN)
+    let mut uc = Unicorn::new(Arch::ARM, Mode::LITTLE_ENDIAN | Mode::THUMB)
         .map_err(UniErr).context("Failed to initialize Unicorn instance")?;
 
     load_memory_regions(&mut uc, &config)?;
     init_peripherals(&mut uc, device)?;
 
-    uc.add_mem_hook(HookType::MEM_UNMAPPED, 0, u64::MAX, |emu, type_, addr, size, value| {
-        let pc = emu.reg_read(RegisterARM::PC).expect("failed to get pc");
-        error!("mem: {:?} inst_addr=0x{:08x} mem_addr=0x{:08x}, size={} value={}", type_, pc, addr, size, value);
+    uc.add_mem_hook(HookType::MEM_UNMAPPED, 0, u64::MAX, |uc, type_, addr, size, value| {
+        let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
+        error!("mem: {:?} inst_addr=0x{:08x} mem_addr=0x{:08x}, size={} value=0x{:08x}", type_, pc, addr, size, value);
         false
     }).expect("add_mem_hook failed");
 
-    uc.add_code_hook(0, u64::MAX, |_emu, _addr, _size| {
+    /*
+    uc.add_code_hook(0, u64::MAX, |_uc, addr, size| {
+        trace!("code_hook {:08x} {:08x}", addr, size);
     }).expect("add_code_hook failed");
+    */
+
+    uc.add_intr_hook(|_uc, addr| {
+        trace!("intr_hook {:08x}", addr);
+    }).expect("add_intr_hook failed");
+
+    uc.add_insn_invalid_hook(|uc| {
+        let pc = uc.reg_read(RegisterARM::PC).unwrap();
+        let mut ins = [0,0,0,0];
+        uc.mem_read(pc, &mut ins).unwrap();
+        match ins {
+            [0xef, 0xf3, 0x10, 0x80] => {
+                // mrs r0, primask
+                uc.reg_write(RegisterARM::R0, 0).unwrap();
+                uc.reg_write(RegisterARM::PC, thumb(pc+4)).unwrap();
+                trace!("read primask");
+                true
+            }
+            [0x80, 0xf3, 0x10, 0x88] => {
+                // msr primask,r0
+                trace!("write primask");
+                uc.reg_write(RegisterARM::PC, thumb(pc+4)).unwrap();
+                true
+            }
+            [0x72, 0xb6, _, _] => {
+                // instruction: cpsid
+                trace!("Disabling interrupt");
+                uc.reg_write(RegisterARM::PC, thumb(pc+2)).unwrap();
+                trace!("disabled interrupts, pc is now {:08x}", uc.pc_read().unwrap());
+                true
+            }
+            _ => {
+                error!("invalid insn: pc=0x{:08x}, ins={:x?}", pc, ins);
+                false
+            }
+        }
+    }).expect("add_insn_invalid_hook failed");
+
 
     let vector_table = VectorTable::from_memory(&uc, config.cpu.vector_table)?;
     uc.reg_write(RegisterARM::SP, vector_table.sp.into()).map_err(UniErr)?;
 
     info!("Starting emulation");
-    uc.emu_start(vector_table.reset.into(), 0, 0, 0).map_err(UniErr)?;
 
-    info!("Done");
+    let mut pc = vector_table.reset as u64;
 
-
-    Ok(())
+    loop {
+        let result = uc.emu_start(pc, 0, 0, 0).map_err(UniErr);
+        pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
+        if result.is_err() {
+            warn!("Execution abort. pc = 0x{:08x}", pc);
+            result?;
+        }
+        trace!("Resuming execution pc={:08x}", pc);
+        pc = thumb(pc);
+    }
 }
