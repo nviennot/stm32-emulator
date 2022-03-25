@@ -1,0 +1,22 @@
+[package]
+name = "stm32-emulator"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+unicorn-engine = "2.0.0-rc3"
+clap = { version = "3.1", features = ["derive"] }
+clap-num = "1"
+anyhow = "1"
+bytes = "1"
+serde = { version = "1.0", features = ["derive"]}
+serde_yaml = "0.8"
+
+svd-parser = "0.13"
+
+env_logger = "0.9"
+log = "0.4"
+
+lazy_static = "1.4"
