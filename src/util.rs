@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::error::Error;
 use std::io::prelude::*;
 use unicorn_engine::unicorn_const::uc_error;

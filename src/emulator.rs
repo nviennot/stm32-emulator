@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::{collections::HashMap, mem::MaybeUninit, cell::RefCell, rc::Rc, sync::atomic::{AtomicU64, Ordering, AtomicBool}};
 use svd_parser::svd::Device;
 use unicorn_engine::{unicorn_const::{Arch, Mode, Permission, HookType}, Unicorn, RegisterARM};

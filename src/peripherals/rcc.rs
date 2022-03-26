@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use svd_parser::svd::{MaybeArray, RegisterInfo};
 use unicorn_engine::Unicorn;
 
