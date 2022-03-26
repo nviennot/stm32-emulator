@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering::Relaxed;
 use clap::Parser;
 use clap::AppSettings;
 use anyhow::{Result, Context};
-use env_logger::fmt::Color;
+use env_logger::fmt::WriteStyle;
 use log::LevelFilter;
 
 use config::Config;
@@ -41,11 +41,32 @@ pub struct Args {
     /// Stop emulation when pc reaches this address
     #[clap(short, long, parse(try_from_str=clap_num::maybe_hex))]
     stop_addr: Option<u32>,
+
+    /// Colorize output
+    #[clap(short, long, arg_enum, default_value="auto")]
+    color: Color,
+}
+
+#[derive(clap::ArgEnum, Clone, Copy, Debug)]
+enum Color {
+    Auto,
+    Always,
+    Never,
+}
+
+impl std::convert::From<Color> for WriteStyle {
+    fn from(c: Color) -> Self {
+        match c {
+            Color::Always => WriteStyle::Always,
+            Color::Never => WriteStyle::Never,
+            Color::Auto => WriteStyle::Auto,
+        }
+    }
 }
 
 
-fn init_logging(level: u8) {
-    let lf = match level {
+fn init_logging(args: &Args) {
+    let lf = match args.verbose {
         0 => LevelFilter::Info,
         1 => LevelFilter::Debug,
         _ => LevelFilter::Trace,
@@ -55,8 +76,10 @@ fn init_logging(level: u8) {
 
     env_logger::Builder::new()
         .filter_level(lf)
+        .write_style(args.color.into())
         .target(env_logger::Target::Stdout)
         .format(|buf, record| {
+            use env_logger::fmt::Color;
             let num_instructions = emulator::NUM_INSTRUCTIONS.load(Relaxed);
             let delta_instructions = num_instructions - unsafe { LAST_NUM_INSTRUCTIONS };
             unsafe { LAST_NUM_INSTRUCTIONS = num_instructions };
@@ -72,9 +95,9 @@ fn init_logging(level: u8) {
 
             let mut style = buf.style();
             match delta_instructions {
-                0..=299    => { }
-                300..=2999 => { style.set_color(Color::Yellow); }
-                3000..     => { style.set_color(Color::Magenta); }
+                0..=999     => { }
+                1000..=9999 => { style.set_color(Color::Yellow); }
+                10000..     => { style.set_color(Color::Magenta); }
             }
             let delta_instructions = style.value(delta_instructions);
 
@@ -85,7 +108,7 @@ fn init_logging(level: u8) {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    init_logging(args.verbose);
+    init_logging(&args);
 
     let config: Config = serde_yaml::from_str(&read_file_str(&args.config)?)
         .with_context(|| format!("Failed to parse {}", args.config))?;
