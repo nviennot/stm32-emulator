@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use svd_parser::svd::{MaybeArray, RegisterInfo};
 use unicorn_engine::Unicorn;
 
 use super::Peripheral;
@@ -20,13 +19,13 @@ pub struct Gpio {
 }
 
 impl Gpio {
-    pub fn use_peripheral(name: &str) -> bool {
-        name.starts_with("GPIO")
-    }
-
-    pub fn new(name: String, _registers: &[MaybeArray<RegisterInfo>]) -> Self {
-        let block = name.strip_prefix("GPIO").unwrap().chars().next().unwrap();
-        Self { block, ..Self::default() }
+    pub fn new(name: &str) -> Option<Box<dyn Peripheral>> {
+        if let Some(block) = name.strip_prefix("GPIO") {
+            let block = block.chars().next().unwrap();
+            Some(Box::new(Self { block, ..Self::default() }))
+        } else {
+            None
+        }
     }
 
     // f(port, values)

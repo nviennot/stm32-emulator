@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use svd_parser::svd::{MaybeArray, RegisterInfo};
 use unicorn_engine::Unicorn;
 
 use super::Peripheral;
@@ -12,12 +11,12 @@ pub struct SysTick {
 }
 
 impl SysTick {
-    pub fn use_peripheral(name: &str) -> bool {
-        name == "STK"
-    }
-
-    pub fn new(_name: String, _registers: &[MaybeArray<RegisterInfo>]) -> Self {
-        Self::default()
+    pub fn new(name: &str) -> Option<Box<dyn Peripheral>> {
+        if name == "STK" {
+            Some(Box::new(Self::default()))
+        } else {
+            None
+        }
     }
 }
 

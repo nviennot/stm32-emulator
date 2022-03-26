@@ -4,6 +4,7 @@ mod config;
 mod emulator;
 mod util;
 mod peripherals;
+mod devices;
 
 use std::io::prelude::*;
 use std::sync::atomic::Ordering::Relaxed;

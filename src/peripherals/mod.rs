@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod rcc;
-mod spi;
+pub mod spi;
 mod systick;
 mod gpio;
 
@@ -13,6 +13,8 @@ use gpio::*;
 use std::collections::BTreeMap;
 use svd_parser::svd::{RegisterInfo, MaybeArray};
 use unicorn_engine::{Unicorn, RegisterARM};
+
+use crate::devices::Devices;
 
 pub struct Peripherals {
     debug_peripherals: Vec<PeripheralSlot<GenericPeripheral>>,
@@ -39,7 +41,12 @@ impl Peripherals {
         Self { debug_peripherals, peripherals }
     }
 
-    pub fn register_peripheral(&mut self, name: String, base: u32, registers: &[MaybeArray<RegisterInfo>]) {
+    pub fn register_peripheral(&mut self,
+        name: String,
+        base: u32,
+        registers: &[MaybeArray<RegisterInfo>],
+        devices: &mut Devices,
+    ) {
         let p = GenericPeripheral::new(name.clone(), registers);
 
         debug!("Peripheral base=0x{:08x} size=0x{:08} name={}", base, p.size(), p.name());
@@ -54,12 +61,12 @@ impl Peripherals {
 
         self.debug_peripherals.push(PeripheralSlot { start, end, peripheral: p });
 
-        let p: Option<Box<dyn Peripheral>> =
-                 if     Rcc::use_peripheral(&name) { Some(Box::new(    Rcc::new(name, registers))) }
-            else if     Spi::use_peripheral(&name) { Some(Box::new(    Spi::new(name, registers))) }
-            else if    Gpio::use_peripheral(&name) { Some(Box::new(   Gpio::new(name, registers))) }
-            else if SysTick::use_peripheral(&name) { Some(Box::new(SysTick::new(name, registers))) }
-            else { None };
+        let p = None
+            .or_else(|| SysTick::new(&name))
+            .or_else(||    Gpio::new(&name))
+            .or_else(||     Rcc::new(&name))
+            .or_else(||     Spi::new(&name, devices))
+        ;
 
         if let Some(p) = p{
             self.peripherals.push(PeripheralSlot { start, end, peripheral: p });
@@ -98,16 +105,18 @@ impl Peripherals {
         assert!(byte_offset + size <= 4);
         let addr = addr - byte_offset as u32;
 
-        if log::log_enabled!(log::Level::Trace) {
-            let desc = self.addr_desc(uc, addr);
-            trace!("read:  {}", desc);
-        }
-
-        if let Some(p) = Self::get_peripheral(&mut self.peripherals, addr) {
+        let value = if let Some(p) = Self::get_peripheral(&mut self.peripherals, addr) {
             p.peripheral.read(uc, addr - p.start) << (8*byte_offset)
         } else {
             0
+        };
+
+        if log::log_enabled!(log::Level::Trace) {
+            let desc = self.addr_desc(uc, addr);
+            trace!("read:  {} read=0x{:08x}", desc, value);
         }
+
+        value
     }
 
     pub fn write(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8, mut value: u32) {
@@ -136,7 +145,7 @@ impl Peripherals {
 
         if log::log_enabled!(log::Level::Trace) {
             let desc = self.addr_desc(uc, addr);
-            trace!("write: {} value=0x{:08x}", desc, value);
+            trace!("write: {} write=0x{:08x}", desc, value);
         }
 
         if let Some(p) = Self::get_peripheral(&mut self.peripherals, addr) {

@@ -21,6 +21,7 @@ log = "0.4"
 
 lazy_static = "1.4"
 termcolor = "1.1"
+num_enum = "0.5"
 
 #[patch.crates-io]
 #unicorn-engine = { path = "unicorn/bindings/rust" }

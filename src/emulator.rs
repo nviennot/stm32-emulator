@@ -3,7 +3,7 @@
 use std::{collections::HashMap, mem::MaybeUninit, cell::RefCell, rc::Rc, sync::atomic::{AtomicU64, Ordering, AtomicBool}};
 use svd_parser::svd::Device;
 use unicorn_engine::{unicorn_const::{Arch, Mode, Permission, HookType}, Unicorn, RegisterARM};
-use crate::{config::Config, util::{round_up, UniErr, read_file}, peripherals::Peripherals, Args};
+use crate::{config::Config, util::{round_up, UniErr, read_file}, peripherals::Peripherals, Args, devices::Devices};
 use anyhow::{Context, Result};
 
 #[repr(C)]
@@ -49,15 +49,15 @@ pub fn load_memory_regions(uc: &mut Unicorn<()>, config: &Config) -> Result<()> 
     Ok(())
 }
 
-pub fn init_peripherals(uc: &mut Unicorn<()>, mut device: Device) -> Result<Rc<RefCell<Peripherals>>> {
+pub fn init_peripherals(uc: &mut Unicorn<()>, mut svd_device: Device, devices: &mut Devices) -> Result<Rc<RefCell<Peripherals>>> {
     let mut peripherals = Peripherals::new();
 
-    device.peripherals.sort_by_key(|f| f.base_address);
-    let svd_peripherals = device.peripherals.iter()
+    svd_device.peripherals.sort_by_key(|f| f.base_address);
+    let svd_peripherals = svd_device.peripherals.iter()
         .map(|d| (d.name.to_string(), d))
         .collect::<HashMap<_,_>>();
 
-    for p in &device.peripherals {
+    for p in &svd_device.peripherals {
         let name = &p.name;
         let base = p.base_address;
 
@@ -70,7 +70,7 @@ pub fn init_peripherals(uc: &mut Unicorn<()>, mut device: Device) -> Result<Rc<R
         };
 
         let regs: Vec<_> = p.all_registers().cloned().collect();
-        peripherals.register_peripheral(name.to_string(), base as u32, &regs);
+        peripherals.register_peripheral(name.to_string(), base as u32, &regs, devices);
     }
 
 
@@ -107,7 +107,10 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
         .map_err(UniErr).context("Failed to initialize Unicorn instance")?;
 
     load_memory_regions(&mut uc, &config)?;
-    init_peripherals(&mut uc, device)?;
+
+    let mut devices = config.devices.unwrap_or(Default::default()).try_into()?;
+    init_peripherals(&mut uc, device, &mut devices)?;
+    devices.assert_empty()?;
 
     // Important to keep. Otherwise pc is not accurate due to prefetching and all.
     let trace_instructions = args.verbose >= 3;
