@@ -62,6 +62,9 @@ impl SpiFlash {
                 let id = self.config.jedec_id;
                 vec![(id >> 16) as u8, (id >> 8) as u8, (id >> 0) as u8].into()
             }
+            Command::ReadData => {
+                vec![].into()
+            }
         }
     }
 }
@@ -69,5 +72,6 @@ impl SpiFlash {
 #[derive(Debug, num_enum::TryFromPrimitive)]
 #[repr(u8)]
 enum Command {
+    ReadData = 0x03,
     ReadJEDECID = 0x9F,
 }
