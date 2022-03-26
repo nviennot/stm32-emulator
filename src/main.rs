@@ -21,7 +21,7 @@ use util::read_file_str;
 #[macro_use]
 extern crate log;
 
-/// Decompress .data section from a Keil compiled firmware
+/// STM32 Emulator
 #[derive(Parser, Debug)]
 #[clap(
     global_setting(AppSettings::DeriveDisplayOrder)
@@ -83,6 +83,7 @@ fn init_logging(args: &Args) {
             let num_instructions = emulator::NUM_INSTRUCTIONS.load(Relaxed);
             let delta_instructions = num_instructions - unsafe { LAST_NUM_INSTRUCTIONS };
             unsafe { LAST_NUM_INSTRUCTIONS = num_instructions };
+            let pc = unsafe { emulator::LAST_INSTRUCTION.0 };
 
             let mut style = buf.style();
             let level = match record.level() {
@@ -94,14 +95,11 @@ fn init_logging(args: &Args) {
             };
 
             let mut style = buf.style();
-            match delta_instructions {
-                0..=999     => { }
-                1000..=9999 => { style.set_color(Color::Yellow); }
-                10000..     => { style.set_color(Color::Magenta); }
-            }
-            let delta_instructions = style.value(delta_instructions);
+            style.set_color(Color::Black).set_intense(true);
+            let header = format!("[tsc={:08} dtsc=+{:08} pc=0x{:08x}]", num_instructions, delta_instructions, pc);
+            let header = style.value(header);
 
-            writeln!(buf, "[{:08} +{:08}] {} {}", num_instructions, delta_instructions, level, record.args())
+            writeln!(buf, "{} {} {}", header, level, record.args())
         })
         .init();
 }

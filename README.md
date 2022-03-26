@@ -1,0 +1,537 @@
+STM32 Emulator
+==============
+
+This is a work in progress. The end-goal is to simulate 3D printers.
+
+Example usage
+--------------
+
+```
+$ cd example/
+$ cargo run --release -- config.yaml --stop-addr 0x080201f8 -v --color=always | grep -vE 'PB(8|9)'
+```
+
+Example output
+----------------
+
+```
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Mapping region start=0x08020000 len=0x80000 name=ROM
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] INFO  Loading file=saturn-v4.4.3-pj-v5.bin at base=0x08020000
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Mapping region start=0x10000000 len=0x18000 name=RAM-CCM
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Mapping region start=0x20000000 len=0x20000 name=RAM
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40000000 size=0x00000084 name=TIM2
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40000400 size=0x00000080 name=TIM3
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40000800 size=0x00000080 name=TIM4
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40000c00 size=0x00000084 name=TIM5
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40001000 size=0x00000048 name=TIM6
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40001400 size=0x00000048 name=TIM7
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40001800 size=0x00000056 name=TIM12
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40001c00 size=0x00000056 name=TIM13
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40002000 size=0x00000056 name=TIM14
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40002800 size=0x00000084 name=RTC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40002c00 size=0x00000012 name=WWDG
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40003000 size=0x00000016 name=IWDG
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40003400 size=0x00000036 name=I2S2ext
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40003800 size=0x00000036 name=SPI2
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40003c00 size=0x00000036 name=SPI3
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40004000 size=0x00000036 name=I2S3ext
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40004400 size=0x00000028 name=USART2
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40004800 size=0x00000028 name=USART3
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40004c00 size=0x00000024 name=UART4
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40005000 size=0x00000024 name=UART5
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40005400 size=0x00000036 name=I2C1
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40005800 size=0x00000036 name=I2C2
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40005c00 size=0x00000036 name=I2C3
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40006400 size=0x00000544 name=CAN1
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40006800 size=0x00000544 name=CAN2
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40007000 size=0x00000008 name=PWR
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40007400 size=0x00000056 name=DAC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40007800 size=0x00000024 name=UART7
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40007c00 size=0x00000024 name=UART8
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40010000 size=0x00000080 name=TIM1
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40010400 size=0x00000080 name=TIM8
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40011000 size=0x00000028 name=USART1
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40011400 size=0x00000028 name=USART6
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40012000 size=0x00000080 name=ADC1
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40012100 size=0x00000080 name=ADC2
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40012200 size=0x00000080 name=ADC3
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40012300 size=0x00000012 name=ADC_Common
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40012c00 size=0x00000132 name=SDIO
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40013000 size=0x00000036 name=SPI1
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40013400 size=0x00000036 name=SPI4
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40013800 size=0x00000036 name=SYSCFG
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40013c00 size=0x00000024 name=EXTI
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40014000 size=0x00000056 name=TIM9
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40014400 size=0x00000056 name=TIM10
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40014800 size=0x00000084 name=TIM11
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40015000 size=0x00000036 name=SPI5
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40015400 size=0x00000036 name=SPI6
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40015800 size=0x00000032 name=SAI1
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40016800 size=0x00000076 name=LTDC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40020000 size=0x00000040 name=GPIOA
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40020400 size=0x00000040 name=GPIOB
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40020800 size=0x00000040 name=GPIOC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40020c00 size=0x00000040 name=GPIOD
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40021000 size=0x00000040 name=GPIOE
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40021400 size=0x00000040 name=GPIOF
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40021800 size=0x00000040 name=GPIOG
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40021c00 size=0x00000040 name=GPIOH
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40022000 size=0x00000040 name=GPIOI
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40022400 size=0x00000040 name=GPIOJ
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40022800 size=0x00000040 name=GPIOK
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40023000 size=0x00000012 name=CRC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40023800 size=0x00000136 name=RCC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40023c00 size=0x00000024 name=FLASH
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40026000 size=0x00000024 name=DMA1
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40026400 size=0x00000024 name=DMA2
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40028000 size=0x00000096 name=Ethernet_MAC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40028100 size=0x00000200 name=Ethernet_MMC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40028700 size=0x00000048 name=Ethernet_PTP
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40029000 size=0x00000088 name=Ethernet_DMA
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40040000 size=0x00000264 name=OTG_HS_GLOBAL
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40040400 size=0x00000632 name=OTG_HS_HOST
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40040800 size=0x00000820 name=OTG_HS_DEVICE
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x40040e00 size=0x00000004 name=OTG_HS_PWRCLK
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x50000000 size=0x00000264 name=OTG_FS_GLOBAL
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x50000400 size=0x00000500 name=OTG_FS_HOST
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x50000800 size=0x00000884 name=OTG_FS_DEVICE
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x50000e00 size=0x00000004 name=OTG_FS_PWRCLK
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x50050000 size=0x00000044 name=DCMI
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x50060000 size=0x00000116 name=CRYP
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x50060400 size=0x00000788 name=HASH
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0x50060800 size=0x00000012 name=RNG
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xa0000000 size=0x00000264 name=FSMC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xe000e008 size=0x00000004 name=SCB_ACTRL
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xe000e010 size=0x00000016 name=STK
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xe000e100 size=0x00000848 name=NVIC
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xe000ed00 size=0x00000064 name=SCB
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xe000ed88 size=0x00000004 name=FPU_CPACR
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xe000ed90 size=0x00000020 name=MPU
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xe000ef00 size=0x00000004 name=NVIC_STIR
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xe000ef34 size=0x00000012 name=FPU
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] DEBUG Peripheral base=0xe0042000 size=0x00000016 name=DBGMCU
+[tsc=00000000 dtsc=+00000000 pc=0x00000000] INFO  Starting emulation
+[tsc=00292170 dtsc=+00292170 pc=0x08024a1a] DEBUG GPIO PG10 mode=output
+[tsc=00292181 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG10 speed=medium
+[tsc=00292198 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG10 input_cfg=pull-up
+[tsc=00292246 dtsc=+00000048 pc=0x08024a92] DEBUG GPIO PG10 output=0
+[tsc=00292348 dtsc=+00000102 pc=0x08024a1a] DEBUG GPIO PA9 mode=alternate
+[tsc=00292361 dtsc=+00000013 pc=0x08024a38] DEBUG GPIO PA9 speed=high
+[tsc=00292378 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PA9 input_cfg=pull-up
+[tsc=00292396 dtsc=+00000018 pc=0x08024a1a] DEBUG GPIO PA10 mode=alternate
+[tsc=00292409 dtsc=+00000013 pc=0x08024a38] DEBUG GPIO PA10 speed=high
+[tsc=00292426 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PA10 input_cfg=pull-up
+[tsc=00292635 dtsc=+00000209 pc=0x08024a1a] DEBUG GPIO PB13 mode=alternate
+[tsc=00292665 dtsc=+00000030 pc=0x08024a5a] DEBUG GPIO PB13 input_cfg=pull-up
+[tsc=00292683 dtsc=+00000018 pc=0x08024a1a] DEBUG GPIO PB14 mode=alternate
+[tsc=00292713 dtsc=+00000030 pc=0x08024a5a] DEBUG GPIO PB14 input_cfg=pull-up
+[tsc=00292731 dtsc=+00000018 pc=0x08024a1a] DEBUG GPIO PB15 mode=alternate
+[tsc=00292761 dtsc=+00000030 pc=0x08024a5a] DEBUG GPIO PB15 input_cfg=pull-up
+[tsc=00292783 dtsc=+00000022 pc=0x08024a80] DEBUG GPIO PB13 alternate_cfg=AF5
+[tsc=00292802 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PB14 alternate_cfg=AF5
+[tsc=00292821 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PB15 alternate_cfg=AF5
+[tsc=00292939 dtsc=+00000118 pc=0x08024a1a] DEBUG GPIO PD11 mode=output
+[tsc=00292967 dtsc=+00000028 pc=0x08024a5a] DEBUG GPIO PD11 input_cfg=pull-up
+[tsc=00293007 dtsc=+00000040 pc=0x08024a96] DEBUG GPIO PD11 output=1
+[tsc=00293249 dtsc=+00000242 pc=0x08024a1a] DEBUG GPIO PD13 mode=output
+[tsc=00293260 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PD13 speed=high
+[tsc=00293277 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PD13 input_cfg=pull-up
+[tsc=00293350 dtsc=+00000073 pc=0x08024a1a] DEBUG GPIO PG3 mode=output
+[tsc=00293361 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG3 speed=high
+[tsc=00293378 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG3 input_cfg=pull-up
+[tsc=00293482 dtsc=+00000104 pc=0x08024a96] DEBUG GPIO PD13 output=1
+[tsc=00293487 dtsc=+00000005 pc=0x08024a96] DEBUG GPIO PG3 output=1
+[tsc=00293925 dtsc=+00000438 pc=0x08024a1a] DEBUG GPIO PD0 mode=alternate
+[tsc=00293973 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PD1 mode=alternate
+[tsc=00294037 dtsc=+00000064 pc=0x08024a1a] DEBUG GPIO PD4 mode=alternate
+[tsc=00294085 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PD5 mode=alternate
+[tsc=00294149 dtsc=+00000064 pc=0x08024a1a] DEBUG GPIO PD8 mode=alternate
+[tsc=00294197 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PD9 mode=alternate
+[tsc=00294245 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PD10 mode=alternate
+[tsc=00294317 dtsc=+00000072 pc=0x08024a1a] DEBUG GPIO PD14 mode=alternate
+[tsc=00294365 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PD15 mode=alternate
+[tsc=00294485 dtsc=+00000120 pc=0x08024a1a] DEBUG GPIO PE7 mode=alternate
+[tsc=00294533 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PE8 mode=alternate
+[tsc=00294581 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PE9 mode=alternate
+[tsc=00294629 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PE10 mode=alternate
+[tsc=00294677 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PE11 mode=alternate
+[tsc=00294725 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PE12 mode=alternate
+[tsc=00294773 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PE13 mode=alternate
+[tsc=00294821 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PE14 mode=alternate
+[tsc=00294869 dtsc=+00000048 pc=0x08024a1a] DEBUG GPIO PE15 mode=alternate
+[tsc=00294948 dtsc=+00000079 pc=0x08024a1a] DEBUG GPIO PG2 mode=alternate
+[tsc=00295211 dtsc=+00000263 pc=0x08024a1a] DEBUG GPIO PG12 mode=alternate
+[tsc=00295287 dtsc=+00000076 pc=0x08024a80] DEBUG GPIO PD0 alternate_cfg=AF12
+[tsc=00295306 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PD1 alternate_cfg=AF12
+[tsc=00295325 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PD4 alternate_cfg=AF12
+[tsc=00295344 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PD5 alternate_cfg=AF12
+[tsc=00295363 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PD8 alternate_cfg=AF12
+[tsc=00295382 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PD9 alternate_cfg=AF12
+[tsc=00295401 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PD10 alternate_cfg=AF12
+[tsc=00295420 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PD14 alternate_cfg=AF12
+[tsc=00295439 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PD15 alternate_cfg=AF12
+[tsc=00295458 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PE7 alternate_cfg=AF12
+[tsc=00295477 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PE8 alternate_cfg=AF12
+[tsc=00295496 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PE9 alternate_cfg=AF12
+[tsc=00295515 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PE10 alternate_cfg=AF12
+[tsc=00295534 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PE11 alternate_cfg=AF12
+[tsc=00295553 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PE12 alternate_cfg=AF12
+[tsc=00295572 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PE13 alternate_cfg=AF12
+[tsc=00295591 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PE14 alternate_cfg=AF12
+[tsc=00295610 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PE15 alternate_cfg=AF12
+[tsc=00295629 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PG2 alternate_cfg=AF12
+[tsc=00295648 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PG12 alternate_cfg=AF12
+[tsc=00312009 dtsc=+00000088 pc=0x08024a96] DEBUG GPIO PB7 output=1
+[tsc=00312103 dtsc=+00000094 pc=0x08024a1a] DEBUG GPIO PB7 mode=output
+[tsc=00312114 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PB7 speed=medium
+[tsc=00312131 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PB7 input_cfg=pull-up
+[tsc=00312235 dtsc=+00000104 pc=0x08024a96] DEBUG GPIO PG1 output=1
+[tsc=00312281 dtsc=+00000046 pc=0x08024a1a] DEBUG GPIO PG1 mode=output
+[tsc=00312292 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG1 speed=medium
+[tsc=00312309 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG1 input_cfg=pull-up
+[tsc=00312461 dtsc=+00000152 pc=0x08024a92] DEBUG GPIO PG10 output=0
+[tsc=00312573 dtsc=+00000112 pc=0x08024a0c] DEBUG GPIO PG10 mode=input
+[tsc=00312578 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PG10 mode=output
+[tsc=00312584 dtsc=+00000006 pc=0x08024a2a] DEBUG GPIO PG10 speed=low
+[tsc=00312589 dtsc=+00000005 pc=0x08024a38] DEBUG GPIO PG10 speed=medium
+[tsc=00312601 dtsc=+00000012 pc=0x08024a50] DEBUG GPIO PG10 input_cfg=regular
+[tsc=00312606 dtsc=+00000005 pc=0x08024a5a] DEBUG GPIO PG10 input_cfg=pull-up
+[tsc=00312686 dtsc=+00000080 pc=0x08024a92] DEBUG GPIO PA8 output=0
+[tsc=00312787 dtsc=+00000101 pc=0x08024a1a] DEBUG GPIO PA8 mode=alternate
+[tsc=00312800 dtsc=+00000013 pc=0x08024a38] DEBUG GPIO PA8 speed=medium
+[tsc=00312817 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PA8 input_cfg=pull-up
+[tsc=00312913 dtsc=+00000096 pc=0x08024a92] DEBUG GPIO PE2 output=0
+[tsc=00312979 dtsc=+00000066 pc=0x08024a5a] DEBUG GPIO PE2 input_cfg=pull-up
+[tsc=00313123 dtsc=+00000144 pc=0x08024a92] DEBUG GPIO PG7 output=0
+[tsc=00313216 dtsc=+00000093 pc=0x08024a1a] DEBUG GPIO PG7 mode=output
+[tsc=00313227 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG7 speed=medium
+[tsc=00313244 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG7 input_cfg=pull-up
+[tsc=00313348 dtsc=+00000104 pc=0x08024a96] DEBUG GPIO PA15 output=1
+[tsc=00313506 dtsc=+00000158 pc=0x08024a1a] DEBUG GPIO PA15 mode=output
+[tsc=00313517 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PA15 speed=medium
+[tsc=00313534 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PA15 input_cfg=pull-up
+[tsc=00313574 dtsc=+00000040 pc=0x08024a96] DEBUG GPIO PF10 output=1
+[tsc=00313692 dtsc=+00000118 pc=0x08024a1a] DEBUG GPIO PF10 mode=output
+[tsc=00313703 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PF10 speed=medium
+[tsc=00313720 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PF10 input_cfg=pull-up
+[tsc=00313800 dtsc=+00000080 pc=0x08024a92] DEBUG GPIO PG6 output=0
+[tsc=00313898 dtsc=+00000098 pc=0x08024a5a] DEBUG GPIO PG6 input_cfg=pull-up
+[tsc=00314010 dtsc=+00000112 pc=0x08024a92] DEBUG GPIO PD7 output=0
+[tsc=00314103 dtsc=+00000093 pc=0x08024a1a] DEBUG GPIO PD7 mode=output
+[tsc=00314114 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PD7 speed=medium
+[tsc=00314131 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PD7 input_cfg=pull-up
+[tsc=00314235 dtsc=+00000104 pc=0x08024a92] DEBUG GPIO PG0 output=0
+[tsc=00314272 dtsc=+00000037 pc=0x08024a1a] DEBUG GPIO PG0 mode=output
+[tsc=00314283 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG0 speed=medium
+[tsc=00314300 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG0 input_cfg=pull-up
+[tsc=00314460 dtsc=+00000160 pc=0x08024a96] DEBUG GPIO PG9 output=1
+[tsc=00314570 dtsc=+00000110 pc=0x08024a1a] DEBUG GPIO PG9 mode=output
+[tsc=00314581 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG9 speed=medium
+[tsc=00314598 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG9 input_cfg=pull-up
+[tsc=00314686 dtsc=+00000088 pc=0x08024a92] DEBUG GPIO PB6 output=0
+[tsc=00314771 dtsc=+00000085 pc=0x08024a1a] DEBUG GPIO PB6 mode=alternate
+[tsc=00314784 dtsc=+00000013 pc=0x08024a38] DEBUG GPIO PB6 speed=medium
+[tsc=00314801 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PB6 input_cfg=pull-up
+[tsc=00314913 dtsc=+00000112 pc=0x08024a92] DEBUG GPIO PC6 output=0
+[tsc=00314998 dtsc=+00000085 pc=0x08024a1a] DEBUG GPIO PC6 mode=output
+[tsc=00315009 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PC6 speed=medium
+[tsc=00315026 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PC6 input_cfg=pull-up
+[tsc=00315138 dtsc=+00000112 pc=0x08024a96] DEBUG GPIO PE0 output=1
+[tsc=00315176 dtsc=+00000038 pc=0x08024a1a] DEBUG GPIO PE0 mode=output
+[tsc=00315187 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PE0 speed=medium
+[tsc=00315204 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PE0 input_cfg=pull-up
+[tsc=00315364 dtsc=+00000160 pc=0x08024a92] DEBUG GPIO PF0 output=0
+[tsc=00315414 dtsc=+00000050 pc=0x08024a5a] DEBUG GPIO PF0 input_cfg=pull-down
+[tsc=00315574 dtsc=+00000160 pc=0x08024a92] DEBUG GPIO PF5 output=0
+[tsc=00315664 dtsc=+00000090 pc=0x08024a5a] DEBUG GPIO PF5 input_cfg=pull-down
+[tsc=00315784 dtsc=+00000120 pc=0x08024a96] DEBUG GPIO PA5 output=1
+[tsc=00315862 dtsc=+00000078 pc=0x08024a1a] DEBUG GPIO PA5 mode=output
+[tsc=00315873 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PA5 speed=medium
+[tsc=00315890 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PA5 input_cfg=pull-up
+[tsc=00316010 dtsc=+00000120 pc=0x08024a96] DEBUG GPIO PF14 output=1
+[tsc=00316160 dtsc=+00000150 pc=0x08024a1a] DEBUG GPIO PF14 mode=output
+[tsc=00316171 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PF14 speed=medium
+[tsc=00316188 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PF14 input_cfg=pull-up
+[tsc=00316236 dtsc=+00000048 pc=0x08024a96] DEBUG GPIO PG5 output=1
+[tsc=00316314 dtsc=+00000078 pc=0x08024a1a] DEBUG GPIO PG5 mode=output
+[tsc=00316325 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG5 speed=medium
+[tsc=00316342 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG5 input_cfg=pull-up
+[tsc=00316462 dtsc=+00000120 pc=0x08024a96] DEBUG GPIO PE5 output=1
+[tsc=00316553 dtsc=+00000091 pc=0x08024a5a] DEBUG GPIO PE5 input_cfg=pull-up
+[tsc=00316673 dtsc=+00000120 pc=0x08024a92] DEBUG GPIO PF9 output=0
+[tsc=00316782 dtsc=+00000109 pc=0x08024a1a] DEBUG GPIO PF9 mode=output
+[tsc=00316793 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PF9 speed=medium
+[tsc=00316810 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PF9 input_cfg=pull-up
+[tsc=00316898 dtsc=+00000088 pc=0x08024a92] DEBUG GPIO PA6 output=0
+[tsc=00316983 dtsc=+00000085 pc=0x08024a1a] DEBUG GPIO PA6 mode=output
+[tsc=00316994 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PA6 speed=medium
+[tsc=00317011 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PA6 input_cfg=pull-up
+[tsc=00317123 dtsc=+00000112 pc=0x08024a92] DEBUG GPIO PB1 output=0
+[tsc=00317168 dtsc=+00000045 pc=0x08024a1a] DEBUG GPIO PB1 mode=output
+[tsc=00317179 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PB1 speed=medium
+[tsc=00317196 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PB1 input_cfg=pull-up
+[tsc=00317348 dtsc=+00000152 pc=0x08024a96] DEBUG GPIO PD12 output=1
+[tsc=00317482 dtsc=+00000134 pc=0x08024a1a] DEBUG GPIO PD12 mode=output
+[tsc=00317493 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PD12 speed=medium
+[tsc=00317510 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PD12 input_cfg=pull-up
+[tsc=00317574 dtsc=+00000064 pc=0x08024a92] DEBUG GPIO PF1 output=0
+[tsc=00317632 dtsc=+00000058 pc=0x08024a5a] DEBUG GPIO PF1 input_cfg=pull-down
+[tsc=00317784 dtsc=+00000152 pc=0x08024a92] DEBUG GPIO PF3 output=0
+[tsc=00317858 dtsc=+00000074 pc=0x08024a5a] DEBUG GPIO PF3 input_cfg=pull-down
+[tsc=00317994 dtsc=+00000136 pc=0x08024a92] DEBUG GPIO PF15 output=0
+[tsc=00318151 dtsc=+00000157 pc=0x08024a1a] DEBUG GPIO PF15 mode=output
+[tsc=00318162 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PF15 speed=medium
+[tsc=00318179 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PF15 input_cfg=pull-up
+[tsc=00318219 dtsc=+00000040 pc=0x08024a92] DEBUG GPIO PF13 output=0
+[tsc=00318360 dtsc=+00000141 pc=0x08024a1a] DEBUG GPIO PF13 mode=output
+[tsc=00318371 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PF13 speed=medium
+[tsc=00318388 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PF13 input_cfg=pull-up
+[tsc=00318444 dtsc=+00000056 pc=0x08024a96] DEBUG GPIO PG4 output=1
+[tsc=00318514 dtsc=+00000070 pc=0x08024a1a] DEBUG GPIO PG4 mode=output
+[tsc=00318525 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG4 speed=medium
+[tsc=00318542 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG4 input_cfg=pull-up
+[tsc=00318670 dtsc=+00000128 pc=0x08024a96] DEBUG GPIO PC6 output=1
+[tsc=00318751 dtsc=+00000081 pc=0x08024a0c] DEBUG GPIO PC6 mode=input
+[tsc=00318764 dtsc=+00000013 pc=0x08024a50] DEBUG GPIO PC6 input_cfg=regular
+[tsc=00318769 dtsc=+00000005 pc=0x08024a5a] DEBUG GPIO PC6 input_cfg=pull-up
+[tsc=00318881 dtsc=+00000112 pc=0x08024a92] DEBUG GPIO PF2 output=0
+[tsc=00318947 dtsc=+00000066 pc=0x08024a5a] DEBUG GPIO PF2 input_cfg=pull-down
+[tsc=00319091 dtsc=+00000144 pc=0x08024a92] DEBUG GPIO PF7 output=0
+[tsc=00319197 dtsc=+00000106 pc=0x08024a5a] DEBUG GPIO PF7 input_cfg=pull-down
+[tsc=00319301 dtsc=+00000104 pc=0x08024a92] DEBUG GPIO PC7 output=0
+[tsc=00319394 dtsc=+00000093 pc=0x08024a1a] DEBUG GPIO PC7 mode=output
+[tsc=00319405 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PC7 speed=medium
+[tsc=00319422 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PC7 input_cfg=pull-up
+[tsc=00319526 dtsc=+00000104 pc=0x08024a92] DEBUG GPIO PF8 output=0
+[tsc=00319627 dtsc=+00000101 pc=0x08024a1a] DEBUG GPIO PF8 mode=output
+[tsc=00319638 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PF8 speed=medium
+[tsc=00319655 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PF8 input_cfg=pull-up
+[tsc=00319751 dtsc=+00000096 pc=0x08024a92] DEBUG GPIO PF6 output=0
+[tsc=00319849 dtsc=+00000098 pc=0x08024a5a] DEBUG GPIO PF6 input_cfg=pull-down
+[tsc=00319961 dtsc=+00000112 pc=0x08024a92] DEBUG GPIO PG3 output=0
+[tsc=00320017 dtsc=+00000056 pc=0x08024a0c] DEBUG GPIO PG3 mode=input
+[tsc=00320022 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PG3 mode=output
+[tsc=00320028 dtsc=+00000006 pc=0x08024a2a] DEBUG GPIO PG3 speed=low
+[tsc=00320033 dtsc=+00000005 pc=0x08024a38] DEBUG GPIO PG3 speed=medium
+[tsc=00320045 dtsc=+00000012 pc=0x08024a50] DEBUG GPIO PG3 input_cfg=regular
+[tsc=00320050 dtsc=+00000005 pc=0x08024a5a] DEBUG GPIO PG3 input_cfg=pull-up
+[tsc=00320186 dtsc=+00000136 pc=0x08024a92] DEBUG GPIO PD6 output=0
+[tsc=00320271 dtsc=+00000085 pc=0x08024a1a] DEBUG GPIO PD6 mode=output
+[tsc=00320282 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PD6 speed=medium
+[tsc=00320411 dtsc=+00000129 pc=0x08024a92] DEBUG GPIO PF4 output=0
+[tsc=00320493 dtsc=+00000082 pc=0x08024a5a] DEBUG GPIO PF4 input_cfg=pull-down
+[tsc=00320771 dtsc=+00000278 pc=0x08024a1a] DEBUG GPIO PG15 mode=output
+[tsc=00320782 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG15 speed=medium
+[tsc=00320799 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG15 input_cfg=pull-up
+[tsc=00320807 dtsc=+00000008 pc=0x08024a96] DEBUG GPIO PG15 output=1
+[tsc=00320862 dtsc=+00000055 pc=0x08024a1a] DEBUG GPIO PB3 mode=alternate
+[tsc=00320875 dtsc=+00000013 pc=0x08024a38] DEBUG GPIO PB3 speed=medium
+[tsc=00320892 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PB3 input_cfg=pull-up
+[tsc=00320910 dtsc=+00000018 pc=0x08024a1a] DEBUG GPIO PB4 mode=alternate
+[tsc=00320923 dtsc=+00000013 pc=0x08024a38] DEBUG GPIO PB4 speed=medium
+[tsc=00320940 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PB4 input_cfg=pull-up
+[tsc=00320958 dtsc=+00000018 pc=0x08024a1a] DEBUG GPIO PB5 mode=alternate
+[tsc=00320971 dtsc=+00000013 pc=0x08024a38] DEBUG GPIO PB5 speed=medium
+[tsc=00320988 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PB5 input_cfg=pull-up
+[tsc=00321090 dtsc=+00000102 pc=0x08024a80] DEBUG GPIO PB3 alternate_cfg=AF6
+[tsc=00321109 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PB4 alternate_cfg=AF6
+[tsc=00321128 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PB5 alternate_cfg=AF6
+[tsc=00321238 dtsc=+00000110 pc=0x08024a92] DEBUG GPIO PG15 output=0
+[tsc=00321322 dtsc=+00000084 pc=0x08024a96] DEBUG GPIO PG15 output=1
+[tsc=00321731 dtsc=+00000409 pc=0x08024a92] DEBUG GPIO PG15 output=0
+[tsc=00321991 dtsc=+00000260 pc=0x08024a96] DEBUG GPIO PG15 output=1
+[tsc=05060140 dtsc=+00004571 pc=0x0804dec2] ERROR WRITE_UNMAPPED pc=0x0804dec2 addr=0x00000010 size=4 value=0x00000000
+[tsc=05060142 dtsc=+00000002 pc=0x0804dec6] ERROR WRITE_UNMAPPED pc=0x0804dec6 addr=0x00000014 size=4 value=0x00000000
+[tsc=05060157 dtsc=+00000015 pc=0x0804dd7a] ERROR READ_UNMAPPED pc=0x0804dd7a addr=0x0000001d size=1 value=0x00000000
+[tsc=05060290 dtsc=+00000133 pc=0x0804de76] ERROR READ_UNMAPPED pc=0x0804de76 addr=0x00000004 size=4 value=0x00000000
+[tsc=05060298 dtsc=+00000008 pc=0x08048d86] ERROR READ_UNMAPPED pc=0x08048d86 addr=0x00000000 size=1 value=0x00000000
+[tsc=05060316 dtsc=+00000018 pc=0x08024a92] DEBUG GPIO PA15 output=0
+[tsc=05060375 dtsc=+00000059 pc=0x08034102] DEBUG GPIO PC6 output=0
+[tsc=05060379 dtsc=+00000004 pc=0x0803410c] DEBUG GPIO PG1 output=0
+[tsc=05060379 dtsc=+00000000 pc=0x0803410c] DEBUG GPIO PG3 output=1
+[tsc=05060379 dtsc=+00000000 pc=0x0803410c] DEBUG GPIO PG4 output=0
+[tsc=05060379 dtsc=+00000000 pc=0x0803410c] DEBUG GPIO PG5 output=0
+[tsc=05060379 dtsc=+00000000 pc=0x0803410c] DEBUG GPIO PG9 output=0
+[tsc=05060379 dtsc=+00000000 pc=0x0803410c] DEBUG GPIO PG15 output=0
+[tsc=05060419 dtsc=+00000040 pc=0x0803411a] DEBUG GPIO PC7 output=1
+[tsc=05061725 dtsc=+00001306 pc=0x0804de92] ERROR READ_UNMAPPED pc=0x0804de92 addr=0x00000004 size=4 value=0x00000000
+[tsc=05061733 dtsc=+00000008 pc=0x08048d86] ERROR READ_UNMAPPED pc=0x08048d86 addr=0x0000000a size=1 value=0x00000000
+[tsc=05061813 dtsc=+00000080 pc=0x0804def0] ERROR READ_UNMAPPED pc=0x0804def0 addr=0x00000004 size=4 value=0x00000000
+[tsc=05061821 dtsc=+00000008 pc=0x08048d86] ERROR READ_UNMAPPED pc=0x08048d86 addr=0x00000000 size=1 value=0x00000000
+[tsc=05074339 dtsc=+00012518 pc=0x0804df0c] ERROR READ_UNMAPPED pc=0x0804df0c addr=0x00000004 size=4 value=0x00000000
+[tsc=05074347 dtsc=+00000008 pc=0x08048d86] ERROR READ_UNMAPPED pc=0x08048d86 addr=0x00000000 size=1 value=0x00000000
+[tsc=05074365 dtsc=+00000018 pc=0x08024a96] DEBUG GPIO PA15 output=1
+[tsc=05074407 dtsc=+00000042 pc=0x0803ee38] ERROR WRITE_UNMAPPED pc=0x0803ee38 addr=0x00000018 size=2 value=0x00000000
+[tsc=05074409 dtsc=+00000002 pc=0x0803ee3c] ERROR WRITE_UNMAPPED pc=0x0803ee3c addr=0x0000001a size=2 value=0x00000002
+[tsc=05074499 dtsc=+00000090 pc=0x0804df2c] ERROR READ_UNMAPPED pc=0x0804df2c addr=0x00000018 size=2 value=0x00000000
+[tsc=05074507 dtsc=+00000008 pc=0x0804df50] ERROR READ_UNMAPPED pc=0x0804df50 addr=0x00000010 size=4 value=0x00000000
+[tsc=05074509 dtsc=+00000002 pc=0x0804df54] ERROR READ_UNMAPPED pc=0x0804df54 addr=0x00000014 size=4 value=0x00000000
+[tsc=05074513 dtsc=+00000004 pc=0x0804df5e] ERROR READ_UNMAPPED pc=0x0804df5e addr=0x00000014 size=2 value=0x00000000
+[tsc=05074516 dtsc=+00000003 pc=0x0804df74] ERROR READ_UNMAPPED pc=0x0804df74 addr=0x00000010 size=4 value=0x00000000
+[tsc=05074518 dtsc=+00000002 pc=0x0804df7a] ERROR READ_UNMAPPED pc=0x0804df7a addr=0x00000014 size=4 value=0x00000000
+[tsc=05078463 dtsc=+00003945 pc=0x08024a80] DEBUG GPIO PA9 alternate_cfg=AF7
+[tsc=05078482 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PA10 alternate_cfg=AF7
+[tsc=05078577 dtsc=+00000095 pc=0x08024a0c] DEBUG GPIO PA9 mode=input
+[tsc=05078582 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PA9 mode=alternate
+[tsc=05078590 dtsc=+00000008 pc=0x08024a2a] DEBUG GPIO PA9 speed=low
+[tsc=05078595 dtsc=+00000005 pc=0x08024a38] DEBUG GPIO PA9 speed=high
+[tsc=05078607 dtsc=+00000012 pc=0x08024a50] DEBUG GPIO PA9 input_cfg=regular
+[tsc=05078612 dtsc=+00000005 pc=0x08024a5a] DEBUG GPIO PA9 input_cfg=pull-up
+[tsc=05078625 dtsc=+00000013 pc=0x08024a0c] DEBUG GPIO PA10 mode=input
+[tsc=05078630 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PA10 mode=alternate
+[tsc=05078638 dtsc=+00000008 pc=0x08024a2a] DEBUG GPIO PA10 speed=low
+[tsc=05078643 dtsc=+00000005 pc=0x08024a38] DEBUG GPIO PA10 speed=high
+[tsc=05078655 dtsc=+00000012 pc=0x08024a50] DEBUG GPIO PA10 input_cfg=regular
+[tsc=05078660 dtsc=+00000005 pc=0x08024a5a] DEBUG GPIO PA10 input_cfg=pull-up
+[tsc=05361672 dtsc=+00283012 pc=0x08024a80] DEBUG GPIO PB11 alternate_cfg=AF7
+[tsc=05361691 dtsc=+00000019 pc=0x08024a80] DEBUG GPIO PB10 alternate_cfg=AF7
+[tsc=05361800 dtsc=+00000109 pc=0x08024a1a] DEBUG GPIO PB10 mode=alternate
+[tsc=05361813 dtsc=+00000013 pc=0x08024a38] DEBUG GPIO PB10 speed=high
+[tsc=05361830 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PB10 input_cfg=pull-up
+[tsc=05361848 dtsc=+00000018 pc=0x08024a1a] DEBUG GPIO PB11 mode=alternate
+[tsc=05361861 dtsc=+00000013 pc=0x08024a38] DEBUG GPIO PB11 speed=high
+[tsc=05361878 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PB11 input_cfg=pull-up
+[tsc=05642566 dtsc=+00280688 pc=0x08024a80] DEBUG GPIO PA8 alternate_cfg=AF1
+[tsc=05642853 dtsc=+00000287 pc=0x08024a80] DEBUG GPIO PB6 alternate_cfg=AF2
+[tsc=05744942 dtsc=+00000020 pc=0x0805518e] ERROR READ_UNMAPPED pc=0x0805518e addr=0x1fff7a10 size=4 value=0x00000000
+[tsc=05744946 dtsc=+00000004 pc=0x08055196] ERROR READ_UNMAPPED pc=0x08055196 addr=0x1fff7a14 size=4 value=0x00000000
+[tsc=05744950 dtsc=+00000004 pc=0x0805519e] ERROR READ_UNMAPPED pc=0x0805519e addr=0x1fff7a18 size=4 value=0x00000000
+[tsc=05984871 dtsc=+00001671 pc=0x08024a92] DEBUG GPIO PG15 output=0
+[tsc=05985131 dtsc=+00000260 pc=0x08024a96] DEBUG GPIO PG15 output=1
+[tsc=05985269 dtsc=+00000138 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=05985284 dtsc=+00000015 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=05985494 dtsc=+00000210 pc=0x08024a92] DEBUG GPIO PG15 output=0
+[tsc=05986018 dtsc=+00000524 pc=0x08024a96] DEBUG GPIO PG15 output=1
+[tsc=05986104 dtsc=+00000086 pc=0x08024a92] DEBUG GPIO PG15 output=0
+[tsc=05986628 dtsc=+00000524 pc=0x08024a96] DEBUG GPIO PG15 output=1
+[tsc=05986774 dtsc=+00000146 pc=0x08026e4e] DEBUG GPIO PD11 output=0
+[tsc=05986774 dtsc=+00000000 pc=0x08026e4e] DEBUG GPIO PD12 output=0
+[tsc=05986774 dtsc=+00000000 pc=0x08026e4e] DEBUG GPIO PD13 output=0
+[tsc=05990650 dtsc=+00003876 pc=0x08024a92] DEBUG GPIO PG1 output=0
+[tsc=05993150 dtsc=+00002500 pc=0x08041f5a] DEBUG GPIO PF10 output=0
+[tsc=05993150 dtsc=+00000000 pc=0x08041f5a] DEBUG GPIO PF14 output=0
+[tsc=05993153 dtsc=+00000003 pc=0x08041f64] DEBUG GPIO PG3 output=0
+[tsc=05993153 dtsc=+00000000 pc=0x08041f64] DEBUG GPIO PG15 output=0
+[tsc=05993159 dtsc=+00000006 pc=0x08041f76] DEBUG GPIO PG4 output=1
+[tsc=08493427 dtsc=+02500268 pc=0x08024a92] DEBUG GPIO PA15 output=0
+[tsc=08493490 dtsc=+00000063 pc=0x0803410c] DEBUG GPIO PG3 output=1
+[tsc=08493490 dtsc=+00000000 pc=0x0803410c] DEBUG GPIO PG4 output=0
+[tsc=08494861 dtsc=+00001371 pc=0x08024a96] DEBUG GPIO PA15 output=1
+[tsc=08495000 dtsc=+00000139 pc=0x08024a92] DEBUG GPIO PA15 output=0
+[tsc=08496436 dtsc=+00001436 pc=0x08024a96] DEBUG GPIO PA15 output=1
+[tsc=08496587 dtsc=+00000151 pc=0x08024a92] DEBUG GPIO PA15 output=0
+[tsc=08498022 dtsc=+00001435 pc=0x08024a96] DEBUG GPIO PA15 output=1
+[tsc=08498130 dtsc=+00000108 pc=0x08024a92] DEBUG GPIO PA15 output=0
+[tsc=08510663 dtsc=+00012533 pc=0x08024a96] DEBUG GPIO PA15 output=1
+[tsc=08511593 dtsc=+00000930 pc=0x08024a1a] DEBUG GPIO PB12 mode=output
+[tsc=08511604 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PB12 speed=medium
+[tsc=08511621 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PB12 input_cfg=pull-up
+[tsc=08511654 dtsc=+00000033 pc=0x08024a92] DEBUG GPIO PB12 output=0
+[tsc=08511686 dtsc=+00000032 pc=0x08024a96] DEBUG GPIO PB12 output=1
+[tsc=08512290 dtsc=+00000604 pc=0x08024a0c] DEBUG GPIO PD0 mode=input
+[tsc=08512295 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PD0 mode=alternate
+[tsc=08512338 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PD1 mode=input
+[tsc=08512343 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PD1 mode=alternate
+[tsc=08512402 dtsc=+00000059 pc=0x08024a0c] DEBUG GPIO PD4 mode=input
+[tsc=08512407 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PD4 mode=alternate
+[tsc=08512450 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PD5 mode=input
+[tsc=08512455 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PD5 mode=alternate
+[tsc=08512514 dtsc=+00000059 pc=0x08024a0c] DEBUG GPIO PD8 mode=input
+[tsc=08512519 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PD8 mode=alternate
+[tsc=08512562 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PD9 mode=input
+[tsc=08512567 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PD9 mode=alternate
+[tsc=08512610 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PD10 mode=input
+[tsc=08512615 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PD10 mode=alternate
+[tsc=08512682 dtsc=+00000067 pc=0x08024a0c] DEBUG GPIO PD14 mode=input
+[tsc=08512687 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PD14 mode=alternate
+[tsc=08512730 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PD15 mode=input
+[tsc=08512735 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PD15 mode=alternate
+[tsc=08512850 dtsc=+00000115 pc=0x08024a0c] DEBUG GPIO PE7 mode=input
+[tsc=08512855 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PE7 mode=alternate
+[tsc=08512898 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PE8 mode=input
+[tsc=08512903 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PE8 mode=alternate
+[tsc=08512946 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PE9 mode=input
+[tsc=08512951 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PE9 mode=alternate
+[tsc=08512994 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PE10 mode=input
+[tsc=08512999 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PE10 mode=alternate
+[tsc=08513042 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PE11 mode=input
+[tsc=08513047 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PE11 mode=alternate
+[tsc=08513090 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PE12 mode=input
+[tsc=08513095 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PE12 mode=alternate
+[tsc=08513138 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PE13 mode=input
+[tsc=08513143 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PE13 mode=alternate
+[tsc=08513186 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PE14 mode=input
+[tsc=08513191 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PE14 mode=alternate
+[tsc=08513234 dtsc=+00000043 pc=0x08024a0c] DEBUG GPIO PE15 mode=input
+[tsc=08513239 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PE15 mode=alternate
+[tsc=08513313 dtsc=+00000074 pc=0x08024a0c] DEBUG GPIO PG2 mode=input
+[tsc=08513318 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PG2 mode=alternate
+[tsc=08513576 dtsc=+00000258 pc=0x08024a0c] DEBUG GPIO PG12 mode=input
+[tsc=08513581 dtsc=+00000005 pc=0x08024a1a] DEBUG GPIO PG12 mode=alternate
+[tsc=08513654 dtsc=+00000073 pc=0x08024a7a] DEBUG GPIO PD0 alternate_cfg=AF0
+[tsc=08513657 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PD0 alternate_cfg=AF12
+[tsc=08513673 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PD1 alternate_cfg=AF0
+[tsc=08513676 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PD1 alternate_cfg=AF12
+[tsc=08513692 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PD4 alternate_cfg=AF0
+[tsc=08513695 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PD4 alternate_cfg=AF12
+[tsc=08513711 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PD5 alternate_cfg=AF0
+[tsc=08513714 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PD5 alternate_cfg=AF12
+[tsc=08513730 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PD8 alternate_cfg=AF0
+[tsc=08513733 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PD8 alternate_cfg=AF12
+[tsc=08513749 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PD9 alternate_cfg=AF0
+[tsc=08513752 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PD9 alternate_cfg=AF12
+[tsc=08513768 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PD10 alternate_cfg=AF0
+[tsc=08513771 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PD10 alternate_cfg=AF12
+[tsc=08513787 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PD14 alternate_cfg=AF0
+[tsc=08513790 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PD14 alternate_cfg=AF12
+[tsc=08513806 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PD15 alternate_cfg=AF0
+[tsc=08513809 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PD15 alternate_cfg=AF12
+[tsc=08513825 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PE7 alternate_cfg=AF0
+[tsc=08513828 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PE7 alternate_cfg=AF12
+[tsc=08513844 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PE8 alternate_cfg=AF0
+[tsc=08513847 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PE8 alternate_cfg=AF12
+[tsc=08513863 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PE9 alternate_cfg=AF0
+[tsc=08513866 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PE9 alternate_cfg=AF12
+[tsc=08513882 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PE10 alternate_cfg=AF0
+[tsc=08513885 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PE10 alternate_cfg=AF12
+[tsc=08513901 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PE11 alternate_cfg=AF0
+[tsc=08513904 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PE11 alternate_cfg=AF12
+[tsc=08513920 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PE12 alternate_cfg=AF0
+[tsc=08513923 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PE12 alternate_cfg=AF12
+[tsc=08513939 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PE13 alternate_cfg=AF0
+[tsc=08513942 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PE13 alternate_cfg=AF12
+[tsc=08513958 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PE14 alternate_cfg=AF0
+[tsc=08513961 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PE14 alternate_cfg=AF12
+[tsc=08513977 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PE15 alternate_cfg=AF0
+[tsc=08513980 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PE15 alternate_cfg=AF12
+[tsc=08513996 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PG2 alternate_cfg=AF0
+[tsc=08513999 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PG2 alternate_cfg=AF12
+[tsc=08514015 dtsc=+00000016 pc=0x08024a7a] DEBUG GPIO PG12 alternate_cfg=AF0
+[tsc=08514018 dtsc=+00000003 pc=0x08024a80] DEBUG GPIO PG12 alternate_cfg=AF12
+[tsc=08514238 dtsc=+00000220 pc=0x08024a92] DEBUG GPIO PG15 output=0
+[tsc=08514498 dtsc=+00000260 pc=0x08024a96] DEBUG GPIO PG15 output=1
+[tsc=09129457 dtsc=+00614959 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09129472 dtsc=+00000015 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09129515 dtsc=+00000043 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09129542 dtsc=+00000027 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09129817 dtsc=+00000275 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09129936 dtsc=+00000119 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09130127 dtsc=+00000191 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09130142 dtsc=+00000015 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09130445 dtsc=+00000303 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09130460 dtsc=+00000015 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09131079 dtsc=+00000619 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09131094 dtsc=+00000015 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09131257 dtsc=+00000163 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09131272 dtsc=+00000015 pc=0x0802662c] ERROR READ_UNMAPPED pc=0x0802662c addr=0x00000032 size=1 value=0x00000000
+[tsc=09136652 dtsc=+00005380 pc=0x08024a92] DEBUG GPIO PG15 output=0
+[tsc=09136912 dtsc=+00000260 pc=0x08024a96] DEBUG GPIO PG15 output=1
+[tsc=09137058 dtsc=+00000146 pc=0x08024a1a] DEBUG GPIO PG8 mode=output
+[tsc=09137069 dtsc=+00000011 pc=0x08024a38] DEBUG GPIO PG8 speed=medium
+[tsc=09137086 dtsc=+00000017 pc=0x08024a5a] DEBUG GPIO PG8 input_cfg=pull-up
+[tsc=09137151 dtsc=+00000065 pc=0x08024a96] DEBUG GPIO PG8 output=1
+[tsc=09137490 dtsc=+00000000 pc=0x08049cbc] DEBUG GPIO PB12 output=0
+[tsc=09167926 dtsc=+00000180 pc=0x08024a92] DEBUG GPIO PB7 output=0
+[tsc=09208825 dtsc=+00000051 pc=0x08024a96] DEBUG GPIO PB7 output=1
+[tsc=09209176 dtsc=+00000351 pc=0x080201f6] INFO  Execution done. pc=0x080201f8
+```

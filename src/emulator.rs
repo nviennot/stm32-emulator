@@ -98,7 +98,7 @@ fn thumb(pc: u64) -> u64 {
 }
 
 // PC + instruction size
-static mut LAST_INSTRUCTION: (u32, u8) = (0,0);
+pub static mut LAST_INSTRUCTION: (u32, u8) = (0,0);
 pub static NUM_INSTRUCTIONS: AtomicU64 = AtomicU64::new(0);
 static CONTINUE_EXECUTION: AtomicBool = AtomicBool::new(false);
 
