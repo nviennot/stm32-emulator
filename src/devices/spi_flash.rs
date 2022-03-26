@@ -42,7 +42,7 @@ impl TryFrom<SpiFlashConfig> for SpiFlash {
 
 impl SpiDevice for SpiFlash {
     fn name() -> Option<&'static str> {
-        Some("Flash")
+        Some("ext-flash")
     }
 
     fn xfer(&mut self, spi: &mut Spi) -> Option<VecDeque<u8>> {
@@ -100,7 +100,7 @@ impl SpiFlash {
                 }
                 //let addr = ((addr & 0xFF) << 16) | (addr & 0x00FF00) | (addr >> 16);
 
-                debug!("{} cmd={:?}, addr=0x{:06x}", spi.name, cmd, addr);
+                debug!("{} cmd={:?} addr=0x{:06x}", spi.name, cmd, addr);
 
                 self.read_addr = Some(addr);
                 spi.rx = vec![].into();

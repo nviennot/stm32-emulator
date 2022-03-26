@@ -112,7 +112,7 @@ impl<D: SpiDevice> Peripheral for Spi<D> {
 
                 let rx = self.device.xfer(&mut self.inner);
                 if let Some(rx) = rx {
-                    debug!("{} rx={:x?}", self.inner.name, &rx);
+                    debug!("{}  rx={:x?}", self.inner.name, &rx);
                     self.inner.rx = rx;
                 }
             }
@@ -135,15 +135,3 @@ impl SpiDevice for GenericSpiDevice {
         None
     }
 }
-
-
-/*
-  pGVar1 = PTR_GPIOG_080295f4;
-  HAL_GPIO_ResetPins(PTR_GPIOG_080295f4,p15);
-  SpiTransfer(0x9f);
-  iVar2 = SpiTransfer(0xff);
-  iVar3 = SpiTransfer(0xff);
-  uVar4 = SpiTransfer(0xff);
-  HAL_GPIO_SetPins(pGVar1,p15);
-  return iVar2 << 16 | iVar3 << 8 | uVar4;
-*/
