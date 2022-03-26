@@ -3,10 +3,12 @@
 mod rcc;
 mod spi;
 mod systick;
+mod gpio;
 
 use rcc::*;
 use spi::*;
 use systick::*;
+use gpio::*;
 
 use std::collections::BTreeMap;
 use svd_parser::svd::{RegisterInfo, MaybeArray};
@@ -55,6 +57,7 @@ impl Peripherals {
         let p: Option<Box<dyn Peripheral>> =
                  if     Rcc::use_peripheral(&name) { Some(Box::new(    Rcc::new(name, registers))) }
             else if     Spi::use_peripheral(&name) { Some(Box::new(    Spi::new(name, registers))) }
+            else if    Gpio::use_peripheral(&name) { Some(Box::new(   Gpio::new(name, registers))) }
             else if SysTick::use_peripheral(&name) { Some(Box::new(SysTick::new(name, registers))) }
             else { None };
 

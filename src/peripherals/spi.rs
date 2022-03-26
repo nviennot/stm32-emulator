@@ -21,13 +21,14 @@ impl Spi {
 
 impl Peripheral for Spi {
     fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
-        if offset == 0x0008 {
-            // SR register
-            // receive buffer not empty
-            // transmit buffer empty
-            0b11
-        } else {
-            0
+        match offset {
+            0x0008 => {
+                // SR register
+                // receive buffer not empty
+                // transmit buffer empty
+                0b11
+            }
+            _ => 0
         }
     }
 

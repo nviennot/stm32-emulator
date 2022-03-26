@@ -5,34 +5,26 @@ use unicorn_engine::Unicorn;
 
 use super::Peripheral;
 
-pub struct Rcc {
+#[derive(Default)]
+pub struct Gpio {
+    moder: u32,
 }
 
-impl Rcc {
+impl Gpio {
     pub fn use_peripheral(name: &str) -> bool {
-        name == "RCC"
+        name.starts_with("GPIO")
     }
 
     pub fn new(_name: String, _registers: &[MaybeArray<RegisterInfo>]) -> Self {
-        Self {}
+        Self::default()
     }
 }
 
-
-impl Peripheral for Rcc {
+impl Peripheral for Gpio {
     fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
         match offset {
-            0x0000 => {
-                // CR register
-                // Return all the r to true. This is where the PLL ready flags are.
-                //0b0010_0000_0010_0000_0000_0000_0010
-                0xFFFF_FFFF
-            }
-            0x0008 => {
-                // CFGR register
-                0b1000
-            }
-            _ => 0
+            0x0000 => self.moder,
+            _ => 0,
         }
     }
 

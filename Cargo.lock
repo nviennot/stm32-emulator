@@ -1099,6 +1099,8 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 [[package]]
 name = "unicorn-engine"
 version = "2.0.0-rc6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e33debc24548de4779ae406e5af6a3593f4d409c704c426af441329a9cc71773"
 dependencies = [
  "bitflags",
  "bytes",

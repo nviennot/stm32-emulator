@@ -23,20 +23,23 @@ impl SysTick {
 
 impl Peripheral for SysTick {
     fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
-        if offset == 0x0004 {
-            self.reload
-        } else if offset == 0x0008 {
-            self.val_toggle = !self.val_toggle;
-            if self.val_toggle { 0 } else { self.reload/2 }
-        } else {
-            0
+        match offset {
+            0x0004 => self.reload,
+            0x0008 => {
+                self.val_toggle = !self.val_toggle;
+                if self.val_toggle { 0 } else { self.reload/2 }
+            }
+            _ => 0
         }
     }
 
     fn write(&mut self, _uc: &mut Unicorn<()>, offset: u32, value: u32) {
-        if offset == 0x0004 {
-            // LOAD register
-            self.reload = value
+        match offset {
+            0x0004 => {
+                // LOAD register
+                self.reload = value
+            }
+            _ => {}
         }
     }
 }
