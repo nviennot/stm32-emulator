@@ -14,7 +14,6 @@ pub struct Gpio {
     pupd: u32,
     id: u32,
     od: u32,
-    bsr: u32,
     lck: u32,
     afrl: u32,
     afrh: u32,
@@ -59,7 +58,7 @@ impl Peripheral for Gpio {
             0x000C => self.pupd,
             0x0010 => self.id,
             0x0014 => self.od,
-            0x0018 => self.bsr,
+            0x0018 => 0, // bsr
             0x001C => self.lck,
             0x0020 => self.afrl,
             0x0024 => self.afrh,
@@ -81,7 +80,7 @@ impl Peripheral for Gpio {
                         0b11 => "analog",
                         _ => unreachable!(),
                     };
-                    debug!("{} configured as {}", self.port_str(port), config);
+                    debug!("{} mode={}", self.port_str(port), config);
                 });
                 self.mode = value;
             }
@@ -92,42 +91,74 @@ impl Peripheral for Gpio {
                         0b1 => "open-drain",
                         _ => unreachable!(),
                     };
-                    debug!("{} configured as {}", self.port_str(port), config);
+                    debug!("{} output_cfg={}", self.port_str(port), config);
                 });
                 self.otype = value;
             }
             0x0008 => {
                 Self::iter_port_reg_changes(self.ospeed, value, 2, |port, v| {
                     let config = match v {
-                        0b00 => "low speed",
-                        0b01 => "medium speed",
-                        0b10 => "high speed",
-                        0b11 => "very high speed",
+                        0b00 => "low",
+                        0b01 => "medium",
+                        0b10 => "high",
+                        0b11 => "very-high",
                         _ => unreachable!(),
                     };
-                    debug!("{} configured as {}", self.port_str(port), config);
+                    debug!("{} speed={}", self.port_str(port), config);
                 });
                 self.ospeed = value;
             }
             0x000C => {
+                Self::iter_port_reg_changes(self.pupd, value, 2, |port, v| {
+                    let config = match v {
+                        0b00 => "regular",
+                        0b01 => "pull-up",
+                        0b10 => "pull-down",
+                        0b11 => "reserved",
+                        _ => unreachable!(),
+                    };
+                    debug!("{} input_cfg={}", self.port_str(port), config);
+                });
                 self.pupd = value;
             }
             0x0010 => {
-                self.id = value;
+                // input data register. read-only
             }
             0x0014 => {
+                Self::iter_port_reg_changes(self.od, value, 1, |port, v| {
+                    debug!("{} output={}", self.port_str(port), v);
+                });
                 self.od = value;
             }
             0x0018 => {
-                self.bsr = value;
+                let reset = value >> 16;
+                let set = value & 0xFFFF;
+
+                Self::iter_port_reg_changes(0, set, 1, |port, _| {
+                    debug!("{} output=1", self.port_str(port));
+                });
+
+                Self::iter_port_reg_changes(0, reset, 1, |port, _| {
+                    debug!("{} output=0", self.port_str(port));
+                });
+
+                self.od &= !reset;
+                self.od |= set;
             }
             0x001C => {
+                debug!("GPIO{} port locked", self.block);
                 self.lck = value;
             }
             0x0020 => {
+                Self::iter_port_reg_changes(self.afrl, value, 4, |port, v| {
+                    debug!("{} alternate_cfg=AF{}", self.port_str(port), v);
+                });
                 self.afrl = value;
             }
             0x0024 => {
+                Self::iter_port_reg_changes(self.afrh, value, 4, |port, v| {
+                    debug!("{} alternate_cfg=AF{}", self.port_str(port+8), v);
+                });
                 self.afrh = value;
             }
             _ => {
