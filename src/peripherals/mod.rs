@@ -162,14 +162,34 @@ pub trait Peripheral {
 struct GenericPeripheral {
     pub name: String,
     // offset -> name
-    pub registers: BTreeMap<u32, MaybeArray<RegisterInfo>>,
+    pub registers: BTreeMap<u32, RegisterInfo>,
 }
 
 impl GenericPeripheral {
     pub fn new(name: String, registers: &[MaybeArray<RegisterInfo>]) -> Self {
         let registers = registers.iter()
-            .map(|r| (r.address_offset, r.clone()))
-            .collect();
+        .flat_map(|r| {
+            match r {
+                MaybeArray::Single(r) => {
+                    let mut r = r.clone();
+                    r.name = r.display_name.clone().unwrap_or(r.name);
+                    vec![(r.address_offset, r)].into_iter()
+                }
+                MaybeArray::Array(r, dim) => {
+                    let offsets = svd_parser::svd::register::address_offsets(&r, &dim);
+                    let names = svd_parser::svd::array::names(r, dim);
+                    offsets.zip(names)
+                        .map(|(offset, name)| {
+                            let mut r = r.clone();
+                            r.name = name;
+                            (offset, r)
+                        })
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                }
+            }
+        })
+        .collect();
 
         Self { name, registers }
     }
@@ -177,7 +197,7 @@ impl GenericPeripheral {
     pub fn reg_name(&self, offset: u32) -> String {
         assert!(offset % 4 == 0);
         let reg = self.registers.get(&offset);
-        reg.map(|r| r.display_name.as_ref().unwrap_or(&r.name))
+        reg.map(|r| &r.name)
             .map(|r| format!("{} offset=0x{:04x}", r, offset))
             .unwrap_or_else(|| format!("REG_???? offset=0x{:04x}", offset))
     }
