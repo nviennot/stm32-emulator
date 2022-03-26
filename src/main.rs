@@ -28,13 +28,17 @@ pub struct Args {
     /// Config file
     config: String,
 
-    /// Verbosity. Can be repeated
+    /// Verbosity. Can be repeated. -vvv is the maximum.
     #[clap(short, long, parse(from_occurrences))]
     verbose: u8,
 
-    /// Max instruction counts
+    /// Maximum number of instructions to execute
     #[clap(short, long)]
     max_instructions: Option<u64>,
+
+    /// Stop emulation when pc reaches this address
+    #[clap(short, long, parse(try_from_str=clap_num::maybe_hex))]
+    stop_addr: Option<u32>,
 }
 
 

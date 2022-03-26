@@ -1,6 +1,6 @@
-use std::{collections::HashMap, mem::MaybeUninit, cell::RefCell, rc::Rc, sync::atomic::{AtomicU64, Ordering}};
+use std::{collections::HashMap, mem::MaybeUninit, cell::RefCell, rc::Rc, sync::atomic::{AtomicU64, Ordering, AtomicBool}};
 use svd_parser::svd::Device;
-use unicorn_engine::{unicorn_const::{Arch, Mode, Permission, HookType, uc_error}, Unicorn, RegisterARM};
+use unicorn_engine::{unicorn_const::{Arch, Mode, Permission, HookType}, Unicorn, RegisterARM};
 use crate::{config::Config, util::{round_up, UniErr, read_file}, peripherals::Peripherals, Args};
 use anyhow::{Context, Result};
 
@@ -98,6 +98,7 @@ fn thumb(pc: u64) -> u64 {
 // PC + instruction size
 static mut LAST_INSTRUCTION: (u32, u8) = (0,0);
 pub static NUM_INSTRUCTIONS: AtomicU64 = AtomicU64::new(0);
+static CONTINUE_EXECUTION: AtomicBool = AtomicBool::new(false);
 
 pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
     let mut uc = Unicorn::new(Arch::ARM, Mode::MCLASS | Mode::LITTLE_ENDIAN)
@@ -107,8 +108,11 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
     init_peripherals(&mut uc, device)?;
 
     // Important to keep. Otherwise pc is not accurate due to prefetching and all.
-    uc.add_code_hook(0, u64::MAX, |_uc, addr, size| {
-        //trace!("pc=0x{:08x}", addr);
+    let trace_instructions = args.verbose >= 3;
+    uc.add_code_hook(0, u64::MAX, move |_uc, addr, size| {
+        if trace_instructions {
+            trace!("pc=0x{:08x}", addr);
+        }
         unsafe { LAST_INSTRUCTION = (addr as u32, size as u8) };
         NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
     }).expect("add_code_hook failed");
@@ -126,9 +130,51 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
             uc.reg_write(RegisterARM::PC, thumb(pc as u64 + LAST_INSTRUCTION.1 as u64)).unwrap();
         }
 
+        CONTINUE_EXECUTION.store(true, Ordering::Release);
+
         false
     }).expect("add_mem_hook failed");
 
+    let vector_table = VectorTable::from_memory(&uc, config.cpu.vector_table)?;
+    uc.reg_write(RegisterARM::SP, vector_table.sp.into()).map_err(UniErr)?;
+
+    info!("Starting emulation");
+
+    let mut pc = vector_table.reset as u64;
+
+    loop {
+        let max_instructions = args.max_instructions.map(|c|
+            c - NUM_INSTRUCTIONS.load(Ordering::Relaxed)
+        );
+        if max_instructions == Some(0) {
+            info!("Reached target address. Done");
+            break;
+        }
+
+        let result = uc.emu_start(
+            pc,
+            args.stop_addr.unwrap_or(0) as u64,
+            0,
+            max_instructions.unwrap_or(0) as usize,
+        ).map_err(UniErr);
+        pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
+
+        if CONTINUE_EXECUTION.swap(false, Ordering::AcqRel) {
+            trace!("Resuming execution pc={:08x}", pc);
+            pc = thumb(pc);
+            continue;
+        }
+
+        info!("Execution done. pc=0x{:08x}", pc);
+        result?;
+        break;
+    }
+
+    Ok(())
+}
+
+
+    /*
     uc.add_insn_invalid_hook(|uc| {
         let pc = uc.reg_read(RegisterARM::PC).unwrap();
         let mut ins = [0,0,0,0];
@@ -162,32 +208,4 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
             }
         }
     }).expect("add_insn_invalid_hook failed");
-
-
-    let vector_table = VectorTable::from_memory(&uc, config.cpu.vector_table)?;
-    uc.reg_write(RegisterARM::SP, vector_table.sp.into()).map_err(UniErr)?;
-
-    info!("Starting emulation");
-
-    let mut pc = vector_table.reset as u64;
-
-    loop {
-        let max_instructions = args.max_instructions.map(|c| c - NUM_INSTRUCTIONS.load(Ordering::Relaxed));
-        if max_instructions == Some(0) {
-            info!("Done");
-            break;
-        }
-        let result = uc.emu_start(pc, 0, 0, max_instructions.unwrap_or(0) as usize).map_err(UniErr);
-        pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
-        if result.is_ok() || matches!(result, Err(UniErr(uc_error::WRITE_UNMAPPED)) | Err(UniErr(uc_error::READ_UNMAPPED))) {
-            trace!("Resuming execution pc={:08x}", pc);
-            pc = thumb(pc);
-            continue;
-        }
-
-        warn!("Execution abort. pc = 0x{:08x}", pc);
-        result?;
-    }
-
-    Ok(())
-}
+    */
