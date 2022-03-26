@@ -6,7 +6,7 @@ use unicorn_engine::Unicorn;
 
 use crate::devices::Devices;
 
-use super::Peripheral;
+use super::{Peripheral, Peripherals};
 
 pub struct Spi<D: SpiDevice> {
     inner: SpiInner,
@@ -67,7 +67,7 @@ impl Spi<GenericSpiDevice> {
 }
 
 impl<D: SpiDevice> Peripheral for Spi<D> {
-    fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    fn read(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
         let spi = &mut self.inner;
         match offset {
             0x0000 => {
@@ -96,7 +96,7 @@ impl<D: SpiDevice> Peripheral for Spi<D> {
         }
     }
 
-    fn write(&mut self, _uc: &mut Unicorn<()>, offset: u32, value: u32) {
+    fn write(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32, value: u32) {
         match offset {
             0x0000 => {
                 // CR1 register

@@ -69,10 +69,16 @@ pub fn init_peripherals(uc: &mut Unicorn<()>, mut svd_device: Device, devices: &
             p
         };
 
-        let regs: Vec<_> = p.all_registers().cloned().collect();
+        let regs = crate::util::extract_svd_registers(p);
+        /*
+        for r in &regs {
+            trace!("p={} addr=0x{:08x} reg_name={}", p.name, p.base_address as u32 + r.address_offset, r.name);
+        }
+        */
         peripherals.register_peripheral(name.to_string(), base as u32, &regs, devices);
     }
 
+    peripherals.finish_registration();
 
     let peripherals = Rc::new(RefCell::new(peripherals));
 
@@ -115,11 +121,11 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
     // Important to keep. Otherwise pc is not accurate due to prefetching and all.
     let trace_instructions = args.verbose >= 3;
     uc.add_code_hook(0, u64::MAX, move |_uc, addr, size| {
-        if trace_instructions {
-            trace!("pc=0x{:08x}", addr);
-        }
         unsafe { LAST_INSTRUCTION = (addr as u32, size as u8) };
         NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
+        if trace_instructions {
+            trace!("step");
+        }
     }).expect("add_code_hook failed");
 
     uc.add_intr_hook(|_uc, addr| {
@@ -127,10 +133,10 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
     }).expect("add_intr_hook failed");
 
     uc.add_mem_hook(HookType::MEM_UNMAPPED, 0, u64::MAX, |uc, type_, addr, size, value| {
-        let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
-        error!("{:?} pc=0x{:08x} addr=0x{:08x} size={} value=0x{:08x}", type_, pc, addr, size, value);
+        error!("{:?} addr=0x{:08x} size={} value=0x{:08x}", type_, addr, size, value);
 
         unsafe {
+            let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
             assert!(pc as u32 == LAST_INSTRUCTION.0);
             uc.reg_write(RegisterARM::PC, thumb(pc as u64 + LAST_INSTRUCTION.1 as u64)).unwrap();
         }

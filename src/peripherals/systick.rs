@@ -2,7 +2,7 @@
 
 use unicorn_engine::Unicorn;
 
-use super::Peripheral;
+use super::{Peripheral, Peripherals};
 
 #[derive(Default)]
 pub struct SysTick {
@@ -21,7 +21,7 @@ impl SysTick {
 }
 
 impl Peripheral for SysTick {
-    fn read(&mut self, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    fn read(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
         match offset {
             0x0004 => self.reload,
             0x0008 => {
@@ -32,7 +32,7 @@ impl Peripheral for SysTick {
         }
     }
 
-    fn write(&mut self, _uc: &mut Unicorn<()>, offset: u32, value: u32) {
+    fn write(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32, value: u32) {
         match offset {
             0x0004 => {
                 // LOAD register

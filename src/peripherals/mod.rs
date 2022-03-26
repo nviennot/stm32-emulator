@@ -4,21 +4,23 @@ mod rcc;
 pub mod spi;
 mod systick;
 mod gpio;
+mod dma;
 
 use rcc::*;
 use spi::*;
 use systick::*;
 use gpio::*;
+use dma::*;
 
-use std::collections::BTreeMap;
-use svd_parser::svd::{RegisterInfo, MaybeArray};
-use unicorn_engine::{Unicorn, RegisterARM};
+use std::{collections::BTreeMap, cell::RefCell};
+use svd_parser::svd::RegisterInfo;
+use unicorn_engine::Unicorn;
 
 use crate::devices::Devices;
 
 pub struct Peripherals {
     debug_peripherals: Vec<PeripheralSlot<GenericPeripheral>>,
-    peripherals: Vec<PeripheralSlot<Box<dyn Peripheral>>>,
+    peripherals: Vec<PeripheralSlot<RefCell<Box<dyn Peripheral>>>>,
 }
 
 pub struct PeripheralSlot<T> {
@@ -44,7 +46,7 @@ impl Peripherals {
     pub fn register_peripheral(&mut self,
         name: String,
         base: u32,
-        registers: &[MaybeArray<RegisterInfo>],
+        registers: &[RegisterInfo],
         devices: &mut Devices,
     ) {
         let p = GenericPeripheral::new(name.clone(), registers);
@@ -65,34 +67,34 @@ impl Peripherals {
             .or_else(|| SysTick::new(&name))
             .or_else(||    Gpio::new(&name))
             .or_else(||     Rcc::new(&name))
+            .or_else(||     Dma::new(&name))
             .or_else(||     Spi::new(&name, devices))
         ;
 
-        if let Some(p) = p{
-            self.peripherals.push(PeripheralSlot { start, end, peripheral: p });
+        if let Some(p) = p {
+            self.peripherals.push(PeripheralSlot { start, end, peripheral: RefCell::new(p) });
         }
     }
 
-    pub fn get_peripheral<T>(peripherals: &mut Vec<PeripheralSlot<T>>, addr: u32) -> Option<&mut PeripheralSlot<T>> {
+    pub fn finish_registration(&mut self) {
+    }
+
+    pub fn get_peripheral<T>(peripherals: &Vec<PeripheralSlot<T>>, addr: u32) -> Option<&PeripheralSlot<T>> {
         let index = peripherals.binary_search_by_key(&addr, |p| p.start)
             .map_or_else(|e| e.checked_sub(1), |v| Some(v));
 
-        index.map(|i| peripherals.get_mut(i).filter(|p| addr <= p.end)).flatten()
+        index.map(|i| peripherals.get(i).filter(|p| addr <= p.end)).flatten()
     }
 
-    pub fn addr_desc(&mut self, uc: &mut Unicorn<()>, addr: u32) -> String {
-        let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
+    pub fn addr_desc(&mut self, addr: u32) -> String {
         if let Some(p) = Self::get_peripheral(&mut self.debug_peripherals, addr) {
-            format!("pc=0x{:08x} addr=0x{:08x} peri={} reg={}", pc, addr, p.peripheral.name, p.peripheral.reg_name(addr - p.start))
+            format!("addr=0x{:08x} peri={} reg={}", addr, p.peripheral.name, p.peripheral.reg_name(addr - p.start))
         } else {
-            format!("pc=0x{:08x} addr=0x{:08x} peri=????", pc, addr)
+            format!("addr=0x{:08x} peri=????", addr)
         }
     }
 
     pub fn read(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8) -> u32 {
-        //let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
-        //trace!("X read:  pc=0x{:08x} addr=0x{:08x} size={}", pc, addr, size);
-
         if (0x4200_0000..0x4400_0000).contains(&addr) {
             // Bit-banding
             let bit_number = (addr % 32) / 4;
@@ -105,24 +107,18 @@ impl Peripherals {
         assert!(byte_offset + size <= 4);
         let addr = addr - byte_offset as u32;
 
-        let value = if let Some(p) = Self::get_peripheral(&mut self.peripherals, addr) {
-            p.peripheral.read(uc, addr - p.start) << (8*byte_offset)
+        let value = if let Some(p) = Self::get_peripheral(&self.peripherals, addr) {
+            p.peripheral.borrow_mut().read(&self, uc, addr - p.start) << (8*byte_offset)
         } else {
             0
         };
 
-        if log::log_enabled!(log::Level::Trace) {
-            let desc = self.addr_desc(uc, addr);
-            trace!("read:  {} read=0x{:08x}", desc, value);
-        }
+        trace!("read:  {} read=0x{:08x}", self.addr_desc(addr), value);
 
         value
     }
 
     pub fn write(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8, mut value: u32) {
-        //let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
-        //trace!("X write: pc=0x{:08x} addr=0x{:08x} size={}", pc, addr, size);
-
         if (0x4200_0000..0x4400_0000).contains(&addr) {
             // Bit-banding
             let bit_number = (addr % 32) / 4;
@@ -143,20 +139,17 @@ impl Peripherals {
             value = (value << 8*byte_offset) | (v & (0xFFFF_FFFF >> (32-8*byte_offset)));
         }
 
-        if log::log_enabled!(log::Level::Trace) {
-            let desc = self.addr_desc(uc, addr);
-            trace!("write: {} write=0x{:08x}", desc, value);
-        }
+        trace!("write: {} write=0x{:08x}", self.addr_desc(addr), value);
 
-        if let Some(p) = Self::get_peripheral(&mut self.peripherals, addr) {
-            p.peripheral.write(uc, addr - p.start, value)
+        if let Some(p) = Self::get_peripheral(&self.peripherals, addr) {
+            p.peripheral.borrow_mut().write(self, uc, addr - p.start, value)
         }
     }
 }
 
 pub trait Peripheral {
-    fn read(&mut self, uc: &mut Unicorn<()>, offset: u32) -> u32;
-    fn write(&mut self, uc: &mut Unicorn<()>, offset: u32, value: u32);
+    fn read(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32) -> u32;
+    fn write(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, value: u32);
 }
 
 struct GenericPeripheral {
@@ -166,30 +159,10 @@ struct GenericPeripheral {
 }
 
 impl GenericPeripheral {
-    pub fn new(name: String, registers: &[MaybeArray<RegisterInfo>]) -> Self {
+    pub fn new(name: String, registers: &[RegisterInfo]) -> Self {
         let registers = registers.iter()
-        .flat_map(|r| {
-            match r {
-                MaybeArray::Single(r) => {
-                    let mut r = r.clone();
-                    r.name = r.display_name.clone().unwrap_or(r.name);
-                    vec![(r.address_offset, r)].into_iter()
-                }
-                MaybeArray::Array(r, dim) => {
-                    let offsets = svd_parser::svd::register::address_offsets(&r, &dim);
-                    let names = svd_parser::svd::array::names(r, dim);
-                    offsets.zip(names)
-                        .map(|(offset, name)| {
-                            let mut r = r.clone();
-                            r.name = name;
-                            (offset, r)
-                        })
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                }
-            }
-        })
-        .collect();
+            .map(|r| (r.address_offset, r.clone()))
+            .collect();
 
         Self { name, registers }
     }
@@ -198,8 +171,8 @@ impl GenericPeripheral {
         assert!(offset % 4 == 0);
         let reg = self.registers.get(&offset);
         reg.map(|r| &r.name)
-            .map(|r| format!("{} offset=0x{:04x}", r, offset))
-            .unwrap_or_else(|| format!("REG_???? offset=0x{:04x}", offset))
+            .map(|r| format!("offset=0x{:04x} {}", offset, r))
+            .unwrap_or_else(|| format!("offset=0x{:04x} REG_????", offset))
     }
 
     fn name(&self) -> &str {
