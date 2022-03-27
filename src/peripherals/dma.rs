@@ -2,6 +2,8 @@
 
 use unicorn_engine::Unicorn;
 
+use crate::util::UniErr;
+
 use super::{Peripheral, Peripherals};
 
 #[derive(Default)]
@@ -84,8 +86,59 @@ impl Stream {
         }
     }
 
-    fn get_peripheral_addr_dbg(&self, perifs: &Peripherals) -> String {
-       perifs.addr_desc(self.par)
+    fn do_xfer(&self, name: &str, perifs: &Peripherals, uc: &mut Unicorn<()>) {
+        let dir = self.dir();
+        let data_addr = self.data_addr();
+        let size = self.data_size();
+        let peri_addr = self.par;
+
+        let peri = Peripherals::get_peripheral(&perifs.peripherals, peri_addr);
+
+        let (src, dst) = match dir {
+            Dir::Read => (peri_addr, data_addr),
+            Dir::Write => (data_addr, peri_addr),
+            Dir::MemCopy => (peri_addr, data_addr),
+            Dir::Invalid => (0,0),
+        };
+
+        if log::log_enabled!(log::Level::Debug) {
+            let peri_desc = perifs.addr_desc(peri_addr);
+            debug!("{} xfer initiated channel={} peri_{} dir={:?} addr=0x{:08x} size={}",
+                name, self.channel(), peri_desc, dir, data_addr, size);
+        }
+
+        let buf = match dir {
+            Dir::Read => {
+                peri.map(|p| p.peripheral.borrow_mut().read_dma(perifs, uc, peri_addr-p.start, size))
+            }
+            Dir::Write | Dir::MemCopy => {
+                uc.mem_read_as_vec(src.into(), size)
+                    .map_err(|e| warn!("DMA read failed addr=0x{:08x} size={} e={}", src, size, UniErr(e)))
+                    .map(|v| v.into())
+                    .ok()
+            }
+            Dir::Invalid => Some(vec![].into()),
+        };
+
+        let mut buf = buf.unwrap_or_else(|| {
+            let mut rx = vec![];
+            rx.resize(size, 0);
+            rx.into()
+        });
+
+        trace!("{} xfer buf={:x?}", name, buf);
+
+        match dir {
+            Dir::Write => {
+                peri.map(|p| p.peripheral.borrow_mut().write_dma(perifs, uc, peri_addr-p.start, buf));
+            }
+            Dir::Read | Dir::MemCopy => {
+                if let Err(e) = uc.mem_write(dst.into(), buf.make_contiguous()) {
+                    warn!("DMA read failed addr=0x{:08x} size={} e={}", dst, size, UniErr(e));
+                }
+            }
+            Dir::Invalid => {}
+        }
     }
 
     pub fn read(&mut self, _name: &str, _perifs: &Peripherals,_uc: &mut Unicorn<()>, offset: u32) -> u32 {
@@ -123,26 +176,15 @@ impl Stream {
 
                 // CRx register
                 if value & 1 != 0 {
-                    // Enable!
-                    let addr = self.data_addr();
-                    let size = self.data_size();
-                    let buf = uc.mem_read_as_vec(addr.into(), size);
-
-
-                    if log::log_enabled!(log::Level::Debug) {
-                        let peri = self.get_peripheral_addr_dbg(perifs);
-                        debug!("{} xfer initiated channel={} peri_{} dir={:?} addr=0x{:08x} size={}",
-                            name, self.channel(), peri, self.dir(), addr, size);
-                        trace!("{} xfer buf={:x?}", name, buf);
-                    }
-
+                    // Enable is on. do the transfer.
+                    self.do_xfer(name, perifs, uc);
 
                     value &= !1;
                     self.ndtr = 0;
                     self.next_cr = Some(value);
                 }
             }
-            0x0004 => { self.ndtr = value; }
+            0x0004 => { self.ndtr = value & 0xFFFF; }
             0x0008 => { self.par = value; }
             0x000c => { self.m0ar = value; }
             0x0010 => { self.m1ar = value; }

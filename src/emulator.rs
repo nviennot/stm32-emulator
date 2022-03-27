@@ -3,7 +3,7 @@
 use std::{collections::HashMap, mem::MaybeUninit, cell::RefCell, rc::Rc, sync::atomic::{AtomicU64, Ordering, AtomicBool}};
 use svd_parser::svd::Device;
 use unicorn_engine::{unicorn_const::{Arch, Mode, Permission, HookType, MemType}, Unicorn, RegisterARM};
-use crate::{config::Config, util::{round_up, UniErr, read_file}, peripherals::Peripherals, Args, devices::Devices};
+use crate::{config::Config, util::{round_up, UniErr, read_file}, peripherals::Peripherals, Args, ext_devices::Devices};
 use anyhow::{Context, Result};
 
 #[repr(C)]

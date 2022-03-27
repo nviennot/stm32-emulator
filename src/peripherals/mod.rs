@@ -2,21 +2,23 @@
 
 mod rcc;
 pub mod spi;
+pub mod usart;
 mod systick;
 mod gpio;
 mod dma;
 
 use rcc::*;
 use spi::*;
+use usart::*;
 use systick::*;
 use gpio::*;
 use dma::*;
 
-use std::{collections::BTreeMap, cell::RefCell};
+use std::{collections::{BTreeMap, VecDeque}, cell::RefCell};
 use svd_parser::svd::RegisterInfo;
 use unicorn_engine::Unicorn;
 
-use crate::devices::Devices;
+use crate::ext_devices::Devices;
 
 pub struct Peripherals {
     debug_peripherals: Vec<PeripheralSlot<GenericPeripheral>>,
@@ -66,6 +68,7 @@ impl Peripherals {
         let p = None
             .or_else(|| SysTick::new(&name))
             .or_else(||    Gpio::new(&name))
+            .or_else(||   Usart::new(&name, devices))
             .or_else(||     Rcc::new(&name))
             .or_else(||     Dma::new(&name))
             .or_else(||     Spi::new(&name, devices))
@@ -154,6 +157,19 @@ impl Peripherals {
 pub trait Peripheral {
     fn read(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32) -> u32;
     fn write(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, value: u32);
+
+    fn read_dma(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, size: usize) -> VecDeque<u8> {
+        let mut v = VecDeque::with_capacity(size);
+        for _ in 0..size {
+            v.push_back(self.read(perifs, uc, offset) as u8);
+        }
+        v
+    }
+    fn write_dma(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, value: VecDeque<u8>) {
+        for v in value.into_iter() {
+            self.write(perifs, uc, offset, v.into());
+        }
+    }
 }
 
 struct GenericPeripheral {

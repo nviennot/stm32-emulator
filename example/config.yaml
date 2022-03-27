@@ -22,6 +22,11 @@ devices:
       jedec_id: 0xef4016
       file: saturn-v4.4.3-pj-v5-ui.bin
       size: 0x400000
+  usart_probes:
+    - peripheral: USART1
+      #encoding: utf8
+      #in: stdin
+      #out: stderr
 patches:
   # NOP a delay_us()
   - start: 0x08051e98
