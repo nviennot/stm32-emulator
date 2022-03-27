@@ -6,6 +6,7 @@ pub mod usart;
 mod systick;
 mod gpio;
 mod dma;
+mod fsmc;
 
 use rcc::*;
 use spi::*;
@@ -13,6 +14,7 @@ use usart::*;
 use systick::*;
 use gpio::*;
 use dma::*;
+use fsmc::*;
 
 use std::{collections::{BTreeMap, VecDeque}, cell::RefCell};
 use svd_parser::svd::RegisterInfo;
@@ -33,9 +35,8 @@ pub struct PeripheralSlot<T> {
 
 impl Peripherals {
     // start - end regions
-    pub const MEMORY_MAPS: [(u32, u32); 3] = [
-        (0x4000_0000, 0x8000_0000),
-        (0xA000_0000, 0xB000_0000), // FSMC
+    pub const MEMORY_MAPS: [(u32, u32); 2] = [
+        (0x4000_0000, 0xB000_0000),
         (0xE000_0000, 0xE100_0000),
     ];
 
@@ -53,22 +54,24 @@ impl Peripherals {
     ) {
         let p = GenericPeripheral::new(name.clone(), registers);
 
-        trace!("Peripheral base=0x{:08x} size=0x{:08} name={}", base, p.size(), p.name());
+        let (start, end) = (base, base+p.size());
 
-        if let Some(last_p) = self.debug_peripherals.last() {
-            assert!(last_p.start < base, "Register blocks must be sorted");
-            assert!(last_p.end < base, "Overlapping register blocks between {} and {}", last_p.peripheral.name(), p.name());
-        }
-
-        let start = base;
-        let end = base+p.size();
+        trace!("Peripheral start=0x{:08x} end=0x{:08x} name={}", start, end, p.name());
 
         self.debug_peripherals.push(PeripheralSlot { start, end, peripheral: p });
+
+        // The debug peripheral is just for to print registers right now. So we
+        // change the (start, end) only for the real peripheral.
+        let (start, end) = match name.as_str() {
+            "FSMC" => (0x6000_0000, 0xA000_1000),
+            _ => (start, end),
+        };
 
         let p = None
             .or_else(|| SysTick::new(&name))
             .or_else(||    Gpio::new(&name))
             .or_else(||   Usart::new(&name, devices))
+            .or_else(||    Fsmc::new(&name))
             .or_else(||     Rcc::new(&name))
             .or_else(||     Dma::new(&name))
             .or_else(||     Spi::new(&name, devices))
@@ -80,6 +83,21 @@ impl Peripherals {
     }
 
     pub fn finish_registration(&mut self) {
+        // We sort because we do binary searches to find peripherals
+        self.debug_peripherals.sort_by_key(|p| p.start);
+        self.peripherals.sort_by_key(|p| p.start);
+
+        {
+            // Let's check that peripherals don't overlap
+            let a = self.debug_peripherals.iter();
+            let mut b = self.debug_peripherals.iter();
+            b.next();
+
+            for (p1, p2) in a.zip(b) {
+                assert!(p1.end < p2.start, "Overlapping register blocks between {} and {}",
+                    p1.peripheral.name(), p2.peripheral.name());
+            }
+        }
     }
 
     pub fn get_peripheral<T>(peripherals: &Vec<PeripheralSlot<T>>, addr: u32) -> Option<&PeripheralSlot<T>> {
@@ -107,20 +125,29 @@ impl Peripherals {
         }
     }
 
+    fn is_register(addr: u32) -> bool {
+        // That's the FSMC banks
+        !(0x6000_0000..0xA000_0000).contains(&addr)
+    }
+
     fn align_addr_4(addr: u32) -> (u32, u8) {
         let byte_offset = (addr % 4) as u8;
         let addr = addr - byte_offset as u32;
         (addr, byte_offset)
     }
 
-
     pub fn read(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8) -> u32 {
         if let Some((addr, bit_number)) = Self::bitbanding(addr) {
             return (self.read(uc, addr, 1) >> bit_number) & 1;
         }
 
-        // Reduce the access to 4 byte alignements to make things easier
-        let (addr, byte_offset) = Self::align_addr_4(addr);
+        let (addr, byte_offset) = if Self::is_register(addr) {
+            // Reduce the access to 4 byte alignements to make things easier when dealing with registers
+            Self::align_addr_4(addr)
+        } else {
+            (addr, 0)
+        };
+
         assert!(byte_offset + size <= 4);
 
         let value = if let Some(p) = Self::get_peripheral(&self.peripherals, addr) {
@@ -144,8 +171,13 @@ impl Peripherals {
             return self.write(uc, addr, 1, v);
         }
 
-        // Reduce the access to 4 byte alignements to make things easier
-        let (addr, byte_offset) = Self::align_addr_4(addr);
+        let (addr, byte_offset) = if Self::is_register(addr) {
+            // Reduce the access to 4 byte alignements to make things easier when dealing with registers
+            Self::align_addr_4(addr)
+        } else {
+            (addr, 0)
+        };
+
         assert!(byte_offset + size <= 4);
 
         if byte_offset != 0 {
@@ -153,12 +185,12 @@ impl Peripherals {
             value = (value << 8*byte_offset) | (v & (0xFFFF_FFFF >> (32-8*byte_offset)));
         }
 
-        if crate::verbose() >= 3 {
-            trace!("write: {} write=0x{:08x}", self.addr_desc(addr), value);
-        }
-
         if let Some(p) = Self::get_peripheral(&self.peripherals, addr) {
             p.peripheral.borrow_mut().write(self, uc, addr - p.start, value)
+        }
+
+        if crate::verbose() >= 3 {
+            trace!("write: {} write=0x{:08x}", self.addr_desc(addr), value);
         }
     }
 }
