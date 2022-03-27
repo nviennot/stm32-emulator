@@ -97,12 +97,19 @@ impl Peripherals {
         }
     }
 
-    pub fn read(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8) -> u32 {
+    fn bitbanding(addr: u32) -> Option<(u32, u8)> {
         if (0x4200_0000..0x4400_0000).contains(&addr) {
-            // Bit-banding
             let bit_number = (addr % 32) / 4;
             let addr = 0x4000_0000 + (addr - 0x4200_0000)/32;
-            return (self.read(uc, addr, 1) >> bit_number) & 1
+            return Some((addr, bit_number as u8));
+        } else {
+            None
+        }
+    }
+
+    pub fn read(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8) -> u32 {
+        if let Some((addr, bit_number)) = Self::bitbanding(addr) {
+            return (self.read(uc, addr, 1) >> bit_number) & 1;
         }
 
         // Reduce the reads to 4 byte alignements
@@ -124,10 +131,7 @@ impl Peripherals {
     }
 
     pub fn write(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8, mut value: u32) {
-        if (0x4200_0000..0x4400_0000).contains(&addr) {
-            // Bit-banding
-            let bit_number = (addr % 32) / 4;
-            let addr = 0x4000_0000 + (addr - 0x4200_0000)/32;
+        if let Some((addr, bit_number)) = Self::bitbanding(addr) {
             let mut v = self.read(uc, addr, 1);
             v &= 1 << bit_number;
             v |= (value & 1) << bit_number;
