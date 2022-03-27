@@ -22,16 +22,16 @@ impl Dma {
 }
 
 impl Peripheral for Dma {
-    fn read(&mut self, _perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    fn read(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32) -> u32 {
         match Access::from_offset(offset) {
-            Access::StreamReg(i, offset) => self.streams[i].read(&self.name, uc, offset),
+            Access::StreamReg(i, offset) => self.streams[i].read(&self.name, perifs, uc, offset),
             _ => 0
         }
     }
 
-    fn write(&mut self, _perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, value: u32) {
+    fn write(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, value: u32) {
         match Access::from_offset(offset) {
-            Access::StreamReg(i, offset) => self.streams[i].write(&self.name, uc, offset, value),
+            Access::StreamReg(i, offset) => self.streams[i].write(&self.name, perifs, uc, offset, value),
             _ => {}
         }
     }
@@ -84,13 +84,27 @@ impl Stream {
         }
     }
 
-    pub fn read(&mut self, _name: &str, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    fn get_peripheral_addr_dbg(&self, perifs: &Peripherals) -> String {
+       perifs.addr_desc(self.par)
+    }
+
+    pub fn read(&mut self, _name: &str, _perifs: &Peripherals,_uc: &mut Unicorn<()>, offset: u32) -> u32 {
         match offset {
             0x0000 => {
                 let v = self.cr;
-                if let Some(next_cr) = self.next_cr {
+                if let Some(next_cr) = self.next_cr.take() {
                     self.cr = next_cr;
                 }
+
+                // The saturn firmware is a bit buggy. When doing a DMA write
+                // with size=0, they don't enable the DMA channel, but they
+                // wait for it to go to 1 and then 0, with a timeout. So they
+                // are consistently hitting the timeout.
+                // We'll do toggles on the ready flag to speed things up avoiding the timeout.
+                if self.dir() == Dir::Write && self.data_size() == 0 {
+                    self.next_cr = Some(self.cr ^ 1)
+                }
+
                 v
             }
             0x0004 => self.ndtr,
@@ -102,7 +116,7 @@ impl Stream {
         }
     }
 
-    pub fn write(&mut self, name: &str, uc: &mut Unicorn<()>, offset: u32, mut value: u32)  {
+    pub fn write(&mut self, name: &str, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, mut value: u32)  {
         match offset {
             0x0000 => {
                 self.cr = value;
@@ -111,11 +125,18 @@ impl Stream {
                 if value & 1 != 0 {
                     // Enable!
                     let addr = self.data_addr();
-                    let peri = self.par;
                     let size = self.data_size();
                     let buf = uc.mem_read_as_vec(addr.into(), size);
-                    debug!("{} xfer initiated channel={} peri=0x{:08x} dir={:?} addr=0x{:08x} size={} buf={:x?}",
-                        name, self.channel(), peri, self.dir(), addr, size, buf);
+
+
+                    if log::log_enabled!(log::Level::Debug) {
+                        let peri = self.get_peripheral_addr_dbg(perifs);
+                        debug!("{} xfer initiated channel={} peri_{} dir={:?} addr=0x{:08x} size={}",
+                            name, self.channel(), peri, self.dir(), addr, size);
+                        trace!("{} xfer buf={:x?}", name, buf);
+                    }
+
+
                     value &= !1;
                     self.ndtr = 0;
                     self.next_cr = Some(value);
@@ -131,7 +152,7 @@ impl Stream {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum Dir {
     Read,
     Write,

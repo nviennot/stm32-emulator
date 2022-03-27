@@ -112,7 +112,7 @@ impl<D: SpiDevice> Peripheral for Spi<D> {
 
                 let rx = self.device.xfer(&mut self.inner);
                 if let Some(rx) = rx {
-                    debug!("{}  rx={:x?}", self.inner.name, &rx);
+                    debug!("{} rx={:x?}", self.inner.name, &rx);
                     self.inner.rx = rx;
                 }
             }

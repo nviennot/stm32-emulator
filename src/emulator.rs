@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, mem::MaybeUninit, cell::RefCell, rc::Rc, sync::atomic::{AtomicU64, Ordering, AtomicBool}};
 use svd_parser::svd::Device;
-use unicorn_engine::{unicorn_const::{Arch, Mode, Permission, HookType}, Unicorn, RegisterARM};
+use unicorn_engine::{unicorn_const::{Arch, Mode, Permission, HookType, MemType}, Unicorn, RegisterARM};
 use crate::{config::Config, util::{round_up, UniErr, read_file}, peripherals::Peripherals, Args, devices::Devices};
 use anyhow::{Context, Result};
 
@@ -70,12 +70,14 @@ pub fn init_peripherals(uc: &mut Unicorn<()>, mut svd_device: Device, devices: &
         };
 
         let regs = crate::util::extract_svd_registers(p);
-        /*
-        for r in &regs {
-            trace!("p={} addr=0x{:08x} reg_name={}", p.name, p.base_address as u32 + r.address_offset, r.name);
-        }
-        */
+
         peripherals.register_peripheral(name.to_string(), base as u32, &regs, devices);
+
+        if crate::verbose() >= 3 {
+            for r in &regs {
+                trace!("p={} addr=0x{:08x} reg_name={}", p.name, p.base_address as u32 + r.address_offset, r.name);
+            }
+        }
     }
 
     peripherals.finish_registration();
@@ -119,9 +121,16 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
     devices.assert_empty()?;
 
     // Important to keep. Otherwise pc is not accurate due to prefetching and all.
-    let trace_instructions = args.verbose >= 3;
-    uc.add_code_hook(0, u64::MAX, move |_uc, addr, size| {
-        unsafe { LAST_INSTRUCTION = (addr as u32, size as u8) };
+    let trace_instructions = crate::verbose() >= 4;
+    let busy_loop_stop = args.busy_loop_stop;
+    uc.add_code_hook(0, u64::MAX, move |uc, addr, size| {
+        unsafe {
+            if busy_loop_stop && LAST_INSTRUCTION.0 == addr as u32 {
+                info!("Busy loop reached");
+                uc.emu_stop().unwrap();
+            }
+            LAST_INSTRUCTION = (addr as u32, size as u8);
+        }
         NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
         if trace_instructions {
             trace!("step");
@@ -133,7 +142,11 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
     }).expect("add_intr_hook failed");
 
     uc.add_mem_hook(HookType::MEM_UNMAPPED, 0, u64::MAX, |uc, type_, addr, size, value| {
-        error!("{:?} addr=0x{:08x} size={} value=0x{:08x}", type_, addr, size, value);
+        if type_ == MemType::WRITE_UNMAPPED {
+            warn!("{:?} addr=0x{:08x} size={} value=0x{:08x}", type_, addr, size, value);
+        } else {
+            warn!("{:?} addr=0x{:08x} size={}", type_, addr, size);
+        }
 
         unsafe {
             let pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
@@ -171,7 +184,9 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
         pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
 
         if CONTINUE_EXECUTION.swap(false, Ordering::AcqRel) {
-            trace!("Resuming execution pc={:08x}", pc);
+            if crate::verbose() >= 3 {
+                trace!("Resuming execution pc={:08x}", pc);
+            }
             pc = thumb(pc);
             continue;
         }

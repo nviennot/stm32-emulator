@@ -86,7 +86,7 @@ impl SpiFlash {
         match cmd {
             Command::ReadJEDECID => {
                 spi.tx.pop_front();
-                debug!("{} cmd={:?}", spi.name, cmd);
+                info!("{} cmd={:?}", spi.name, cmd);
                 let id = self.config.jedec_id;
                 Some(vec![(id >> 16) as u8, (id >> 8) as u8, (id >> 0) as u8].into())
             }
@@ -100,7 +100,7 @@ impl SpiFlash {
                 }
                 //let addr = ((addr & 0xFF) << 16) | (addr & 0x00FF00) | (addr >> 16);
 
-                debug!("{} cmd={:?} addr=0x{:06x}", spi.name, cmd, addr);
+                info!("{} cmd={:?} addr=0x{:06x}", spi.name, cmd, addr);
 
                 self.read_addr = Some(addr);
                 spi.rx = vec![].into();

@@ -31,7 +31,7 @@ pub struct Args {
     /// Config file
     config: String,
 
-    /// Verbosity. Can be repeated. -vvv is the maximum.
+    /// Verbosity. Can be repeated. -vvvv is the maximum.
     #[clap(short, long, parse(from_occurrences))]
     verbose: u8,
 
@@ -42,6 +42,10 @@ pub struct Args {
     /// Stop emulation when pc reaches this address
     #[clap(short, long, parse(try_from_str=clap_num::maybe_hex))]
     stop_addr: Option<u32>,
+
+    /// Stop emulation when the program reaches a busy loop
+    #[clap(short, long)]
+    busy_loop_stop: bool,
 
     /// Colorize output
     #[clap(short, long, arg_enum, default_value="auto")]
@@ -65,8 +69,15 @@ impl std::convert::From<Color> for WriteStyle {
     }
 }
 
+static mut VERBOSE: u8 = 0;
+
+pub fn verbose() -> u8 {
+    unsafe { VERBOSE }
+}
 
 fn init_logging(args: &Args) {
+    unsafe { VERBOSE = args.verbose };
+
     let lf = match args.verbose {
         0 => LevelFilter::Info,
         1 => LevelFilter::Debug,

@@ -79,7 +79,7 @@ impl Peripheral for Gpio {
                         0b11 => "analog",
                         _ => unreachable!(),
                     };
-                    debug!("{} mode={}", self.port_str(port), config);
+                    trace!("{} mode={}", self.port_str(port), config);
                 });
                 self.mode = value;
             }
@@ -90,7 +90,7 @@ impl Peripheral for Gpio {
                         0b1 => "open-drain",
                         _ => unreachable!(),
                     };
-                    debug!("{} output_cfg={}", self.port_str(port), config);
+                    trace!("{} output_cfg={}", self.port_str(port), config);
                 });
                 self.otype = value;
             }
@@ -103,7 +103,7 @@ impl Peripheral for Gpio {
                         0b11 => "very-high",
                         _ => unreachable!(),
                     };
-                    debug!("{} speed={}", self.port_str(port), config);
+                    trace!("{} speed={}", self.port_str(port), config);
                 });
                 self.ospeed = value;
             }
@@ -116,7 +116,7 @@ impl Peripheral for Gpio {
                         0b11 => "reserved",
                         _ => unreachable!(),
                     };
-                    debug!("{} input_cfg={}", self.port_str(port), config);
+                    trace!("{} input_cfg={}", self.port_str(port), config);
                 });
                 self.pupd = value;
             }
@@ -125,7 +125,7 @@ impl Peripheral for Gpio {
             }
             0x0014 => {
                 Self::iter_port_reg_changes(self.od, value, 1, |port, v| {
-                    debug!("{} output={}", self.port_str(port), v);
+                    trace!("{} output={}", self.port_str(port), v);
                 });
                 self.od = value;
             }
@@ -134,29 +134,29 @@ impl Peripheral for Gpio {
                 let set = value & 0xFFFF;
 
                 Self::iter_port_reg_changes(0, set, 1, |port, _| {
-                    debug!("{} output=1", self.port_str(port));
+                    trace!("{} output=1", self.port_str(port));
                 });
 
                 Self::iter_port_reg_changes(0, reset, 1, |port, _| {
-                    debug!("{} output=0", self.port_str(port));
+                    trace!("{} output=0", self.port_str(port));
                 });
 
                 self.od &= !reset;
                 self.od |= set;
             }
             0x001C => {
-                debug!("GPIO{} port locked", self.block);
+                trace!("GPIO{} port locked", self.block);
                 self.lck = value;
             }
             0x0020 => {
                 Self::iter_port_reg_changes(self.afrl, value, 4, |port, v| {
-                    debug!("{} alternate_cfg=AF{}", self.port_str(port), v);
+                    trace!("{} alternate_cfg=AF{}", self.port_str(port), v);
                 });
                 self.afrl = value;
             }
             0x0024 => {
                 Self::iter_port_reg_changes(self.afrh, value, 4, |port, v| {
-                    debug!("{} alternate_cfg=AF{}", self.port_str(port+8), v);
+                    trace!("{} alternate_cfg=AF{}", self.port_str(port+8), v);
                 });
                 self.afrh = value;
             }

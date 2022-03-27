@@ -51,7 +51,7 @@ impl Peripherals {
     ) {
         let p = GenericPeripheral::new(name.clone(), registers);
 
-        debug!("Peripheral base=0x{:08x} size=0x{:08} name={}", base, p.size(), p.name());
+        trace!("Peripheral base=0x{:08x} size=0x{:08} name={}", base, p.size(), p.name());
 
         if let Some(last_p) = self.debug_peripherals.last() {
             assert!(last_p.start < base, "Register blocks must be sorted");
@@ -86,9 +86,9 @@ impl Peripherals {
         index.map(|i| peripherals.get(i).filter(|p| addr <= p.end)).flatten()
     }
 
-    pub fn addr_desc(&mut self, addr: u32) -> String {
-        if let Some(p) = Self::get_peripheral(&mut self.debug_peripherals, addr) {
-            format!("addr=0x{:08x} peri={} reg={}", addr, p.peripheral.name, p.peripheral.reg_name(addr - p.start))
+    pub fn addr_desc(&self, addr: u32) -> String {
+        if let Some(p) = Self::get_peripheral(&self.debug_peripherals, addr) {
+            format!("addr=0x{:08x} peri={} {}", addr, p.peripheral.name, p.peripheral.reg_name(addr - p.start))
         } else {
             format!("addr=0x{:08x} peri=????", addr)
         }
@@ -113,7 +113,9 @@ impl Peripherals {
             0
         };
 
-        trace!("read:  {} read=0x{:08x}", self.addr_desc(addr), value);
+        if crate::verbose() >= 3 {
+            trace!("read:  {} read=0x{:08x}", self.addr_desc(addr), value);
+        }
 
         value
     }
@@ -139,7 +141,9 @@ impl Peripherals {
             value = (value << 8*byte_offset) | (v & (0xFFFF_FFFF >> (32-8*byte_offset)));
         }
 
-        trace!("write: {} write=0x{:08x}", self.addr_desc(addr), value);
+        if crate::verbose() >= 3 {
+            trace!("write: {} write=0x{:08x}", self.addr_desc(addr), value);
+        }
 
         if let Some(p) = Self::get_peripheral(&self.peripherals, addr) {
             p.peripheral.borrow_mut().write(self, uc, addr - p.start, value)
@@ -171,8 +175,8 @@ impl GenericPeripheral {
         assert!(offset % 4 == 0);
         let reg = self.registers.get(&offset);
         reg.map(|r| &r.name)
-            .map(|r| format!("offset=0x{:04x} {}", offset, r))
-            .unwrap_or_else(|| format!("offset=0x{:04x} REG_????", offset))
+            .map(|r| format!("offset=0x{:04x} reg={}", offset, r))
+            .unwrap_or_else(|| format!("offset=0x{:04x} reg=????", offset))
     }
 
     fn name(&self) -> &str {
