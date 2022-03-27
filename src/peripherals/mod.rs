@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-mod rcc;
+pub mod rcc;
 pub mod spi;
 pub mod usart;
-mod systick;
-mod gpio;
-mod dma;
-mod fsmc;
+pub mod systick;
+pub mod gpio;
+pub mod dma;
+pub mod fsmc;
 
 use rcc::*;
 use spi::*;
@@ -60,7 +60,7 @@ impl Peripherals {
             .or_else(|| SysTick::new(&name))
             .or_else(||    Gpio::new(&name))
             .or_else(||   Usart::new(&name, ext_devices))
-            .or_else(||    Fsmc::new(&name))
+            .or_else(||    Fsmc::new(&name, ext_devices))
             .or_else(||     Rcc::new(&name))
             .or_else(||     Dma::new(&name))
             .or_else(||     Spi::new(&name, ext_devices))

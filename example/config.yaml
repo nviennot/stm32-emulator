@@ -24,9 +24,8 @@ devices:
       size: 0x400000
   usart_probes:
     - peripheral: USART1
-      #encoding: utf8
-      #in: stdin
-      #out: stderr
+  displays:
+    - peripheral: FSMC.BANK1
 patches:
   # NOP a delay_us()
   - start: 0x08051e98

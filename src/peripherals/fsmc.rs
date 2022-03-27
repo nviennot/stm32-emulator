@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use crate::system::System;
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{system::System, ext_devices::ExtDevices};
 use super::Peripheral;
 
-#[derive(Default)]
 pub struct Fsmc {
-    banks: [Bank; 4]
+    banks: [Bank; 4],
 }
 
 impl Fsmc {
-    pub fn new(name: &str) -> Option<Box<dyn Peripheral>> {
-        if name == "FSMC" {
-            Some(Box::new(Fsmc::default()))
+    pub fn new(name: &str, ext_devices: &ExtDevices) -> Option<Box<dyn Peripheral>> {
+        if name.starts_with("FSMC") {
+            let banks = [
+                Bank::new(0, ext_devices),
+                Bank::new(1, ext_devices),
+                Bank::new(2, ext_devices),
+                Bank::new(3, ext_devices),
+            ];
+            Some(Box::new(Self { banks }))
         } else {
             None
         }
@@ -60,55 +67,71 @@ impl Fsmc {
     }
 }
 
-
 impl Peripheral for Fsmc {
     fn read(&mut self, sys: &System, offset: u32) -> u32 {
         match Self::access(offset) {
-            Access::Data(bank, offset) => self.banks[bank].read_data(bank, sys, offset),
-            Access::Register(bank, reg) => self.banks[bank].read_reg(bank, sys, reg),
+            Access::Data(bank, offset) => self.banks[bank].read_data(sys, offset),
+            Access::Register(bank, reg) => self.banks[bank].read_reg(sys, reg),
         }
     }
 
     fn write(&mut self, sys: &System, offset: u32, value: u32) {
         match Self::access(offset) {
-            Access::Data(bank, offset) => self.banks[bank].write_data(bank, sys, offset, value),
-            Access::Register(bank, reg) => self.banks[bank].write_reg(bank, sys, reg, value),
+            Access::Data(bank, offset) => self.banks[bank].write_data(sys, offset, value),
+            Access::Register(bank, reg) => self.banks[bank].write_reg(sys, reg, value),
         }
     }
 }
 
+pub trait FsmcDevice {
+    fn name(&self, fsmc_bank_name: &str) -> String;
+    fn read_data(&mut self, bank: &mut Bank, offset: u32) -> u32;
+    fn write_data(&mut self, bank: &mut Bank, offset: u32, value: u32);
+}
 
-#[derive(Default)]
 pub struct Bank {
+    pub name: String,
+    ext_device: Option<Rc<RefCell<dyn FsmcDevice>>>,
 }
 
 impl Bank {
-    fn cmd_pin(offset: u32) -> &'static str {
-        if offset & (1 << (12+1)) != 0 {
-            "data"
+    pub fn new(bank: usize, ext_devices: &ExtDevices) -> Self {
+        let name = format!("FSMC.BANK{}", bank+1);
+
+        let ext_device = ext_devices.find_fsmc_device(&name);
+        let name = ext_device.as_ref()
+            .map(|d| d.borrow().name(&name))
+            .unwrap_or(name);
+
+        Self { name, ext_device }
+    }
+
+    fn read_data(&mut self, _sys: &System, offset: u32) -> u32 {
+        let v = if let Some(ext_device) = self.ext_device.as_mut() {
+            ext_device.clone().borrow_mut().read_data(self, offset)
         } else {
-            "cmd"
+            0
+        };
+
+        trace!("{} data read at offset=0x{:08x} value=0x{:08x}", self.name, offset, v);
+        0
+    }
+
+    fn write_data(&mut self, _sys: &System, offset: u32, value: u32) {
+        if let Some(ext_device) = self.ext_device.as_mut() {
+            ext_device.clone().borrow_mut().write_data(self, offset, value);
         }
+
+        trace!("{} data write at offset=0x{:08x} value=0x{:08x}", self.name, offset, value);
     }
 
-    fn read_data(&mut self, bank: usize, _sys: &System, offset: u32) -> u32 {
-        trace!("FSMC bank={} data read at offset=0x{:08x}", bank+1, offset);
-        debug!("FSMC display READ {}", Self::cmd_pin(offset));
+    fn read_reg(&mut self, _sys: &System, reg: Reg) -> u32 {
+        trace!("{} read reg={:?}", self.name, reg);
         0
     }
 
-    fn write_data(&mut self, bank: usize, _sys: &System, offset: u32, value: u32) {
-        trace!("FSMC bank={} data write at offset=0x{:08x}", bank+1, offset);
-        debug!("FSMC display WRITE {} value=0x{:04x}", Self::cmd_pin(offset), value as u16);
-    }
-
-    fn read_reg(&mut self, bank: usize, _sys: &System, reg: Reg) -> u32 {
-        trace!("FSMC bank={} read reg={:?}", bank+1, reg);
-        0
-    }
-
-    fn write_reg(&mut self, bank: usize, _sys: &System, reg: Reg, _value: u32) {
-        trace!("FSMC bank={} write reg={:?}", bank+1, reg);
+    fn write_reg(&mut self, _sys: &System, reg: Reg, _value: u32) {
+        trace!("{} write reg={:?}", self.name, reg);
     }
 }
 
