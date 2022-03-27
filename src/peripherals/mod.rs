@@ -107,15 +107,21 @@ impl Peripherals {
         }
     }
 
+    fn align_addr_4(addr: u32) -> (u32, u8) {
+        let byte_offset = (addr % 4) as u8;
+        let addr = addr - byte_offset as u32;
+        (addr, byte_offset)
+    }
+
+
     pub fn read(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8) -> u32 {
         if let Some((addr, bit_number)) = Self::bitbanding(addr) {
             return (self.read(uc, addr, 1) >> bit_number) & 1;
         }
 
-        // Reduce the reads to 4 byte alignements
-        let byte_offset = (addr % 4) as u8;
+        // Reduce the access to 4 byte alignements to make things easier
+        let (addr, byte_offset) = Self::align_addr_4(addr);
         assert!(byte_offset + size <= 4);
-        let addr = addr - byte_offset as u32;
 
         let value = if let Some(p) = Self::get_peripheral(&self.peripherals, addr) {
             p.peripheral.borrow_mut().read(&self, uc, addr - p.start) << (8*byte_offset)
@@ -138,10 +144,9 @@ impl Peripherals {
             return self.write(uc, addr, 1, v);
         }
 
-        // Reduce the writes to 4 byte alignements
-        let byte_offset = (addr % 4) as u8;
+        // Reduce the access to 4 byte alignements to make things easier
+        let (addr, byte_offset) = Self::align_addr_4(addr);
         assert!(byte_offset + size <= 4);
-        let addr = addr - byte_offset as u32;
 
         if byte_offset != 0 {
             let v = self.read(uc, addr, 4);
