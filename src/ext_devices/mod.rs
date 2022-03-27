@@ -25,7 +25,6 @@ pub struct ExtDevicesConfig {
    pub displays: Option<Vec<DisplayConfig>>,
 }
 
-#[derive(Default)]
 pub struct ExtDevices {
     pub spi_flashes: Vec<Rc<RefCell<SpiFlash>>>,
     pub usart_probes: Vec<Rc<RefCell<UsartProbe>>>,

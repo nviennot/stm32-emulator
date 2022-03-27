@@ -38,7 +38,8 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
 
     let vector_table_addr = config.cpu.vector_table;
 
-    let _sys = crate::system::prepare(&mut uc, config, svd_device)?;
+    let sys = crate::system::prepare(&mut uc, config, svd_device)?;
+    let display = sys.d.displays.first().map(|d| d.clone());
 
     // Important to keep. Otherwise pc is not accurate due to prefetching and all.
     let trace_instructions = crate::verbose() >= 4;
@@ -115,6 +116,11 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
         result?;
         break;
     }
+
+    if let Some(display) = display {
+        display.borrow().write_framebuffer_to_file("framebuffer.bin")?;
+    }
+
 
     Ok(())
 }

@@ -113,7 +113,9 @@ impl Bank {
             0
         };
 
-        trace!("{} data read at offset=0x{:08x} value=0x{:08x}", self.name, offset, v);
+        if crate::verbose() >= 3 {
+            trace!("{} data read at offset=0x{:08x} value=0x{:08x}", self.name, offset, v);
+        }
         0
     }
 
@@ -122,10 +124,13 @@ impl Bank {
             ext_device.clone().borrow_mut().write_data(self, offset, value);
         }
 
-        trace!("{} data write at offset=0x{:08x} value=0x{:08x}", self.name, offset, value);
+        if crate::verbose() >= 3 {
+            trace!("{} data write at offset=0x{:08x} value=0x{:08x}", self.name, offset, value);
+        }
     }
 
     fn read_reg(&mut self, _sys: &System, reg: Reg) -> u32 {
+
         trace!("{} read reg={:?}", self.name, reg);
         0
     }

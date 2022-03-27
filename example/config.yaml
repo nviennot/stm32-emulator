@@ -26,6 +26,8 @@ devices:
     - peripheral: USART1
   displays:
     - peripheral: FSMC.BANK1
+      width: 320
+      height: 240
 patches:
   # NOP a delay_us()
   - start: 0x08051e98
