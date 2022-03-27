@@ -5,6 +5,7 @@ mod emulator;
 mod util;
 mod peripherals;
 mod ext_devices;
+mod system;
 
 use std::io::prelude::*;
 use std::sync::atomic::Ordering::Relaxed;

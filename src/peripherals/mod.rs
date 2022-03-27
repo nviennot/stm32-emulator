@@ -16,12 +16,12 @@ use gpio::*;
 use dma::*;
 use fsmc::*;
 
-use std::{collections::{BTreeMap, VecDeque}, cell::RefCell};
-use svd_parser::svd::RegisterInfo;
-use unicorn_engine::Unicorn;
+use std::{collections::{BTreeMap, VecDeque, HashMap}, cell::RefCell};
+use svd_parser::svd::{RegisterInfo, Device as SvdDevice};
 
-use crate::ext_devices::Devices;
+use crate::{system::System, ext_devices::ExtDevices};
 
+#[derive(Default)]
 pub struct Peripherals {
     debug_peripherals: Vec<PeripheralSlot<GenericPeripheral>>,
     peripherals: Vec<PeripheralSlot<RefCell<Box<dyn Peripheral>>>>,
@@ -40,18 +40,7 @@ impl Peripherals {
         (0xE000_0000, 0xE100_0000),
     ];
 
-    pub fn new() -> Self {
-        let debug_peripherals = vec![];
-        let peripherals = vec![];
-        Self { debug_peripherals, peripherals }
-    }
-
-    pub fn register_peripheral(&mut self,
-        name: String,
-        base: u32,
-        registers: &[RegisterInfo],
-        devices: &mut Devices,
-    ) {
+    pub fn register_peripheral(&mut self, name: String, base: u32, registers: &[RegisterInfo], ext_devices: &ExtDevices) {
         let p = GenericPeripheral::new(name.clone(), registers);
 
         let (start, end) = (base, base+p.size());
@@ -70,11 +59,11 @@ impl Peripherals {
         let p = None
             .or_else(|| SysTick::new(&name))
             .or_else(||    Gpio::new(&name))
-            .or_else(||   Usart::new(&name, devices))
+            .or_else(||   Usart::new(&name, ext_devices))
             .or_else(||    Fsmc::new(&name))
             .or_else(||     Rcc::new(&name))
             .or_else(||     Dma::new(&name))
-            .or_else(||     Spi::new(&name, devices))
+            .or_else(||     Spi::new(&name, ext_devices))
         ;
 
         if let Some(p) = p {
@@ -99,6 +88,43 @@ impl Peripherals {
             }
         }
     }
+
+    pub fn from_svd(mut svd_device: SvdDevice, ext_devices: &ExtDevices) -> Self {
+        let mut peripherals = Peripherals::default();
+
+        svd_device.peripherals.sort_by_key(|f| f.base_address);
+        let svd_peripherals = svd_device.peripherals.iter()
+            .map(|d| (d.name.to_string(), d))
+            .collect::<HashMap<_,_>>();
+
+        for p in &svd_device.peripherals {
+            let name = &p.name;
+            let base = p.base_address;
+
+            let p = if let Some(derived_from) = p.derived_from.as_ref() {
+                svd_peripherals.get(derived_from)
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("Cannot find peripheral {}", derived_from))
+            } else {
+                p
+            };
+
+            let regs = crate::util::extract_svd_registers(p);
+
+            peripherals.register_peripheral(name.to_string(), base as u32, &regs, ext_devices);
+
+            if crate::verbose() >= 3 {
+                for r in &regs {
+                    trace!("p={} addr=0x{:08x} reg_name={}", p.name, p.base_address as u32 + r.address_offset, r.name);
+                }
+            }
+        }
+
+        peripherals.finish_registration();
+        peripherals
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     pub fn get_peripheral<T>(peripherals: &Vec<PeripheralSlot<T>>, addr: u32) -> Option<&PeripheralSlot<T>> {
         let index = peripherals.binary_search_by_key(&addr, |p| p.start)
@@ -136,9 +162,9 @@ impl Peripherals {
         (addr, byte_offset)
     }
 
-    pub fn read(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8) -> u32 {
+    pub fn read(&self, sys: &System, addr: u32, size: u8) -> u32 {
         if let Some((addr, bit_number)) = Self::bitbanding(addr) {
-            return (self.read(uc, addr, 1) >> bit_number) & 1;
+            return (self.read(sys, addr, 1) >> bit_number) & 1;
         }
 
         let (addr, byte_offset) = if Self::is_register(addr) {
@@ -151,7 +177,7 @@ impl Peripherals {
         assert!(byte_offset + size <= 4);
 
         let value = if let Some(p) = Self::get_peripheral(&self.peripherals, addr) {
-            p.peripheral.borrow_mut().read(&self, uc, addr - p.start) << (8*byte_offset)
+            p.peripheral.borrow_mut().read(sys, addr - p.start) << (8*byte_offset)
         } else {
             0
         };
@@ -163,12 +189,12 @@ impl Peripherals {
         value
     }
 
-    pub fn write(&mut self, uc: &mut Unicorn<()>, addr: u32, size: u8, mut value: u32) {
+    pub fn write(&self, sys: &System, addr: u32, size: u8, mut value: u32) {
         if let Some((addr, bit_number)) = Self::bitbanding(addr) {
-            let mut v = self.read(uc, addr, 1);
+            let mut v = self.read(sys, addr, 1);
             v &= 1 << bit_number;
             v |= (value & 1) << bit_number;
-            return self.write(uc, addr, 1, v);
+            return self.write(sys, addr, 1, v);
         }
 
         let (addr, byte_offset) = if Self::is_register(addr) {
@@ -181,12 +207,12 @@ impl Peripherals {
         assert!(byte_offset + size <= 4);
 
         if byte_offset != 0 {
-            let v = self.read(uc, addr, 4);
+            let v = self.read(sys, addr, 4);
             value = (value << 8*byte_offset) | (v & (0xFFFF_FFFF >> (32-8*byte_offset)));
         }
 
         if let Some(p) = Self::get_peripheral(&self.peripherals, addr) {
-            p.peripheral.borrow_mut().write(self, uc, addr - p.start, value)
+            p.peripheral.borrow_mut().write(sys, addr - p.start, value)
         }
 
         if crate::verbose() >= 3 {
@@ -196,19 +222,19 @@ impl Peripherals {
 }
 
 pub trait Peripheral {
-    fn read(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32) -> u32;
-    fn write(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, value: u32);
+    fn read(&mut self, sys: &System, offset: u32) -> u32;
+    fn write(&mut self, sys: &System, offset: u32, value: u32);
 
-    fn read_dma(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, size: usize) -> VecDeque<u8> {
+    fn read_dma(&mut self, sys: &System, offset: u32, size: usize) -> VecDeque<u8> {
         let mut v = VecDeque::with_capacity(size);
         for _ in 0..size {
-            v.push_back(self.read(perifs, uc, offset) as u8);
+            v.push_back(self.read(sys, offset) as u8);
         }
         v
     }
-    fn write_dma(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, value: VecDeque<u8>) {
+    fn write_dma(&mut self, sys: &System, offset: u32, value: VecDeque<u8>) {
         for v in value.into_iter() {
-            self.write(perifs, uc, offset, v.into());
+            self.write(sys, offset, v.into());
         }
     }
 }

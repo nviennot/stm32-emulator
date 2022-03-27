@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::peripherals::usart::{UsartDevice, UsartInner as Usart};
+use crate::peripherals::usart::{UsartDevice, Usart};
 
 #[derive(Debug, Deserialize)]
 pub struct UsartProbeConfig {
@@ -26,8 +26,8 @@ impl TryFrom<UsartProbeConfig> for UsartProbe {
 }
 
 impl UsartDevice for UsartProbe {
-    fn name() -> Option<&'static str> {
-        Some("usart-probe")
+    fn name(&self, usart_name: &str) -> String {
+        format!("{} usart-probe", usart_name)
     }
 
     fn xfer(&mut self, usart: &mut Usart) -> Option<VecDeque<u8>> {

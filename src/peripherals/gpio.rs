@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use unicorn_engine::Unicorn;
-
-use super::{Peripheral, Peripherals};
+use crate::system::System;
+use super::Peripheral;
 
 #[derive(Default)]
 pub struct Gpio {
@@ -49,7 +48,7 @@ impl Gpio {
 }
 
 impl Peripheral for Gpio {
-    fn read(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    fn read(&mut self, _sys: &System, offset: u32) -> u32 {
         match offset {
             0x0000 => self.mode,
             0x0004 => self.otype,
@@ -68,7 +67,7 @@ impl Peripheral for Gpio {
         }
     }
 
-    fn write(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32, value: u32) {
+    fn write(&mut self, _sys: &System, offset: u32, value: u32) {
         match offset {
             0x0000 => {
                 Self::iter_port_reg_changes(self.mode, value, 2, |port, v| {

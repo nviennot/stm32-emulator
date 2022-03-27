@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use unicorn_engine::Unicorn;
-
-use super::{Peripheral, Peripherals};
+use crate::system::System;
+use super::Peripheral;
 
 pub struct Rcc {
 }
@@ -19,7 +18,7 @@ impl Rcc {
 
 
 impl Peripheral for Rcc {
-    fn read(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    fn read(&mut self, _sys: &System, offset: u32) -> u32 {
         match offset {
             0x0000 => {
                 // CR register
@@ -35,6 +34,6 @@ impl Peripheral for Rcc {
         }
     }
 
-    fn write(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, _offset: u32, _value: u32) {
+    fn write(&mut self, _sys: &System, _offset: u32, _value: u32) {
     }
 }

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use unicorn_engine::Unicorn;
-
 use crate::util::UniErr;
-
-use super::{Peripheral, Peripherals};
+use crate::system::System;
+use super::Peripheral;
+use super::Peripherals;
 
 #[derive(Default)]
 pub struct Dma {
@@ -24,16 +23,16 @@ impl Dma {
 }
 
 impl Peripheral for Dma {
-    fn read(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    fn read(&mut self, sys: &System, offset: u32) -> u32 {
         match Access::from_offset(offset) {
-            Access::StreamReg(i, offset) => self.streams[i].read(&self.name, perifs, uc, offset),
+            Access::StreamReg(i, offset) => self.streams[i].read(&self.name, sys, offset),
             _ => 0
         }
     }
 
-    fn write(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, value: u32) {
+    fn write(&mut self, sys: &System, offset: u32, value: u32) {
         match Access::from_offset(offset) {
-            Access::StreamReg(i, offset) => self.streams[i].write(&self.name, perifs, uc, offset, value),
+            Access::StreamReg(i, offset) => self.streams[i].write(&self.name, sys, offset, value),
             _ => {}
         }
     }
@@ -86,13 +85,13 @@ impl Stream {
         }
     }
 
-    fn do_xfer(&self, name: &str, perifs: &Peripherals, uc: &mut Unicorn<()>) {
+    fn do_xfer(&self, name: &str, sys: &System) {
         let dir = self.dir();
         let data_addr = self.data_addr();
         let size = self.data_size();
         let peri_addr = self.par;
 
-        let peri = Peripherals::get_peripheral(&perifs.peripherals, peri_addr);
+        let peri = Peripherals::get_peripheral(&sys.p.peripherals, peri_addr);
 
         let (src, dst) = match dir {
             Dir::Read => (peri_addr, data_addr),
@@ -102,17 +101,17 @@ impl Stream {
         };
 
         if log::log_enabled!(log::Level::Debug) {
-            let peri_desc = perifs.addr_desc(peri_addr);
+            let peri_desc = sys.p.addr_desc(peri_addr);
             debug!("{} xfer initiated channel={} peri_{} dir={:?} addr=0x{:08x} size={}",
                 name, self.channel(), peri_desc, dir, data_addr, size);
         }
 
         let buf = match dir {
             Dir::Read => {
-                peri.map(|p| p.peripheral.borrow_mut().read_dma(perifs, uc, peri_addr-p.start, size))
+                peri.map(|p| p.peripheral.borrow_mut().read_dma(sys, peri_addr-p.start, size))
             }
             Dir::Write | Dir::MemCopy => {
-                uc.mem_read_as_vec(src.into(), size)
+                sys.uc.borrow().mem_read_as_vec(src.into(), size)
                     .map_err(|e| warn!("DMA read failed addr=0x{:08x} size={} e={}", src, size, UniErr(e)))
                     .map(|v| v.into())
                     .ok()
@@ -130,10 +129,10 @@ impl Stream {
 
         match dir {
             Dir::Write => {
-                peri.map(|p| p.peripheral.borrow_mut().write_dma(perifs, uc, peri_addr-p.start, buf));
+                peri.map(|p| p.peripheral.borrow_mut().write_dma(sys, peri_addr-p.start, buf));
             }
             Dir::Read | Dir::MemCopy => {
-                if let Err(e) = uc.mem_write(dst.into(), buf.make_contiguous()) {
+                if let Err(e) = sys.uc.borrow_mut().mem_write(dst.into(), buf.make_contiguous()) {
                     warn!("DMA read failed addr=0x{:08x} size={} e={}", dst, size, UniErr(e));
                 }
             }
@@ -141,7 +140,7 @@ impl Stream {
         }
     }
 
-    pub fn read(&mut self, _name: &str, _perifs: &Peripherals,_uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    pub fn read(&mut self, _name: &str, _sys: &System, offset: u32) -> u32 {
         match offset {
             0x0000 => {
                 let v = self.cr;
@@ -169,7 +168,7 @@ impl Stream {
         }
     }
 
-    pub fn write(&mut self, name: &str, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, mut value: u32)  {
+    pub fn write(&mut self, name: &str, sys: &System, offset: u32, mut value: u32) {
         match offset {
             0x0000 => {
                 self.cr = value;
@@ -177,7 +176,7 @@ impl Stream {
                 // CRx register
                 if value & 1 != 0 {
                     // Enable is on. do the transfer.
-                    self.do_xfer(name, perifs, uc);
+                    self.do_xfer(name, sys);
 
                     value &= !1;
                     self.ndtr = 0;

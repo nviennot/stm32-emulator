@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 
 use crate::util;
-use crate::peripherals::spi::{SpiDevice, SpiInner as Spi};
+use crate::peripherals::spi::{SpiDevice, Spi};
 
 #[derive(Debug, Deserialize)]
 pub struct SpiFlashConfig {
@@ -41,8 +41,8 @@ impl TryFrom<SpiFlashConfig> for SpiFlash {
 }
 
 impl SpiDevice for SpiFlash {
-    fn name() -> Option<&'static str> {
-        Some("ext-flash")
+    fn name(&self, spi_name: &str) -> String {
+        format!("{} ext-flash", spi_name)
     }
 
     fn xfer(&mut self, spi: &mut Spi) -> Option<VecDeque<u8>> {

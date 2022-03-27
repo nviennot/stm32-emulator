@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::collections::VecDeque;
 
-use unicorn_engine::Unicorn;
+use crate::system::System;
+use super::Peripheral;
 
-use crate::ext_devices::Devices;
+use crate::ext_devices::ExtDevices;
 
-use super::{Peripheral, Peripherals};
-
-pub struct Spi<D: SpiDevice> {
-    inner: SpiInner,
-    device: D,
-}
+use std::{collections::VecDeque, rc::Rc, cell::RefCell};
 
 #[derive(Default)]
-pub struct SpiInner {
+pub struct Spi {
     pub name: String,
 
     pub cr1: u32,
@@ -22,56 +17,29 @@ pub struct SpiInner {
 
     pub tx: VecDeque<u8>,
     pub rx: VecDeque<u8>,
+
+    pub ext_device: Option<Rc<RefCell<dyn SpiDevice>>>,
 }
 
-impl Spi<GenericSpiDevice> {
-    pub fn new(name: &str, devices: &mut Devices) -> Option<Box<dyn Peripheral>> {
-        if let Some(p) = Self::new_generic(name) {
-            let device_index = devices.spi_flashes.iter().enumerate()
-                .filter(|(_,f)| f.config.peripheral == name)
-                .map(|(i,_)| i)
-                .next();
-
-            if let Some(device_index) = device_index {
-                let d = devices.spi_flashes.swap_remove(device_index);
-                Some(Box::new(p.with_device(d)))
-            } else {
-                Some(Box::new(p))
-            }
-
-        } else {
-            None
-        }
-
-    }
-
-    pub fn new_generic(name: &str) -> Option<Self> {
+impl Spi {
+    pub fn new(name: &str, ext_devices: &ExtDevices) -> Option<Box<dyn Peripheral>> {
         if name.starts_with("SPI") {
-            let name = name.to_string();
-            Some(Self {
-                inner: SpiInner { name, ..Default::default() },
-                device: GenericSpiDevice,
-            })
+            let ext_device = ext_devices.find_spi_device(name);
+            let name = ext_device.as_ref()
+                .map(|d| d.borrow().name(name))
+                .unwrap_or_else(|| name.to_string());
+            Some(Box::new(Self { name, ext_device, ..Default::default() }))
         } else {
             None
         }
     }
-
-    pub fn with_device<D: SpiDevice>(mut self, device: D) -> Spi<D> {
-        if let Some(device_name) = D::name() {
-            self.inner.name.push_str(" ");
-            self.inner.name.push_str(device_name);
-        }
-        Spi { inner: self.inner, device }
-    }
 }
 
-impl<D: SpiDevice> Peripheral for Spi<D> {
-    fn read(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
-        let spi = &mut self.inner;
+impl Peripheral for Spi {
+    fn read(&mut self, _sys: &System, offset: u32) -> u32 {
         match offset {
             0x0000 => {
-                spi.cr1
+                self.cr1
             }
             0x0008 => {
                 // SR register
@@ -81,39 +49,43 @@ impl<D: SpiDevice> Peripheral for Spi<D> {
             }
             0x000C => {
                 // DR register
-                if spi.bits16 {
-                    if spi.rx.len() >= 2 {
-                        ((spi.rx.pop_front().unwrap() as u32) << 8) |
-                          spi.rx.pop_front().unwrap() as u32
+                if self.bits16 {
+                    if self.rx.len() >= 2 {
+                        ((self.rx.pop_front().unwrap() as u32) << 8) |
+                          self.rx.pop_front().unwrap() as u32
                     } else {
                         0
                     }
                 } else {
-                    spi.rx.pop_front().unwrap_or(0) as u32
+                    self.rx.pop_front().unwrap_or(0) as u32
                 }
             }
             _ => 0
         }
     }
 
-    fn write(&mut self, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32, value: u32) {
+    fn write(&mut self, _sys: &System, offset: u32, value: u32) {
         match offset {
             0x0000 => {
                 // CR1 register
-                self.inner.bits16 = value & (1 << 11) != 0;
-                self.inner.cr1 = value;
+                self.bits16 = value & (1 << 11) != 0;
+                self.cr1 = value;
             }
             0x000C => {
                 // DR register
-                if self.inner.bits16 {
-                    self.inner.tx.push_back((value >> 8) as u8);
+                if self.bits16 {
+                    self.tx.push_back((value >> 8) as u8);
                 }
-                self.inner.tx.push_back(value as u8);
+                self.tx.push_back(value as u8);
 
-                let rx = self.device.xfer(&mut self.inner);
-                if let Some(rx) = rx {
-                    debug!("{} rx={:x?}", self.inner.name, &rx);
-                    self.inner.rx = rx;
+                trace!("{} tx={:x?}", self.name, self.tx);
+
+                if let Some(ext_device) = self.ext_device.as_mut() {
+                    let rx = ext_device.clone().borrow_mut().xfer(self);
+                    if let Some(rx) = rx {
+                        debug!("{} rx={:x?}", self.name, &rx);
+                        self.rx = rx;
+                    }
                 }
             }
             _ => {}
@@ -121,17 +93,7 @@ impl<D: SpiDevice> Peripheral for Spi<D> {
     }
 }
 
-pub trait SpiDevice: Sized {
-    fn name() -> Option<&'static str> { None }
-    fn xfer(&mut self, spi: &mut SpiInner) -> Option<VecDeque<u8>>;
-}
-
-#[derive(Default)]
-pub struct GenericSpiDevice;
-
-impl SpiDevice for GenericSpiDevice {
-    fn xfer(&mut self, spi: &mut SpiInner) -> Option<VecDeque<u8>> {
-        debug!("{} tx={:x?}", spi.name, spi.tx);
-        None
-    }
+pub trait SpiDevice {
+    fn name(&self, spi_name: &str) -> String;
+    fn xfer(&mut self, spi: &mut Spi) -> Option<VecDeque<u8>>;
 }

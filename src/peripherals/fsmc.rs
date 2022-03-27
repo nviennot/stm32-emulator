@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use unicorn_engine::Unicorn;
-
-use super::{Peripheral, Peripherals};
+use crate::system::System;
+use super::Peripheral;
 
 #[derive(Default)]
 pub struct Fsmc {
@@ -63,17 +62,17 @@ impl Fsmc {
 
 
 impl Peripheral for Fsmc {
-    fn read(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    fn read(&mut self, sys: &System, offset: u32) -> u32 {
         match Self::access(offset) {
-            Access::Data(bank, offset) => self.banks[bank].read_data(bank, perifs, uc, offset),
-            Access::Register(bank, reg) => self.banks[bank].read_reg(bank, perifs, uc, reg),
+            Access::Data(bank, offset) => self.banks[bank].read_data(bank, sys, offset),
+            Access::Register(bank, reg) => self.banks[bank].read_reg(bank, sys, reg),
         }
     }
 
-    fn write(&mut self, perifs: &Peripherals, uc: &mut Unicorn<()>, offset: u32, value: u32) {
+    fn write(&mut self, sys: &System, offset: u32, value: u32) {
         match Self::access(offset) {
-            Access::Data(bank, offset) => self.banks[bank].write_data(bank, perifs, uc, offset, value),
-            Access::Register(bank, reg) => self.banks[bank].write_reg(bank, perifs, uc, reg, value),
+            Access::Data(bank, offset) => self.banks[bank].write_data(bank, sys, offset, value),
+            Access::Register(bank, reg) => self.banks[bank].write_reg(bank, sys, reg, value),
         }
     }
 }
@@ -92,23 +91,23 @@ impl Bank {
         }
     }
 
-    fn read_data(&mut self, bank: usize, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32) -> u32 {
+    fn read_data(&mut self, bank: usize, _sys: &System, offset: u32) -> u32 {
         trace!("FSMC bank={} data read at offset=0x{:08x}", bank+1, offset);
         debug!("FSMC display READ {}", Self::cmd_pin(offset));
         0
     }
 
-    fn write_data(&mut self, bank: usize, _perifs: &Peripherals, _uc: &mut Unicorn<()>, offset: u32, value: u32) {
+    fn write_data(&mut self, bank: usize, _sys: &System, offset: u32, value: u32) {
         trace!("FSMC bank={} data write at offset=0x{:08x}", bank+1, offset);
         debug!("FSMC display WRITE {} value=0x{:04x}", Self::cmd_pin(offset), value as u16);
     }
 
-    fn read_reg(&mut self, bank: usize, _perifs: &Peripherals, _uc: &mut Unicorn<()>, reg: Reg) -> u32 {
+    fn read_reg(&mut self, bank: usize, _sys: &System, reg: Reg) -> u32 {
         trace!("FSMC bank={} read reg={:?}", bank+1, reg);
         0
     }
 
-    fn write_reg(&mut self, bank: usize, _perifs: &Peripherals, _uc: &mut Unicorn<()>, reg: Reg, _value: u32) {
+    fn write_reg(&mut self, bank: usize, _sys: &System, reg: Reg, _value: u32) {
         trace!("FSMC bank={} write reg={:?}", bank+1, reg);
     }
 }

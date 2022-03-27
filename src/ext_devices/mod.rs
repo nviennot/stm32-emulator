@@ -6,43 +6,50 @@ mod usart_probe;
 use spi_flash::{SpiFlashConfig, SpiFlash};
 use usart_probe::{UsartProbeConfig, UsartProbe};
 
-use std::convert::TryFrom;
+use std::{convert::TryFrom, rc::Rc, cell::RefCell};
 use serde::Deserialize;
-use anyhow::{Result, bail};
+use anyhow::Result;
+
+use crate::peripherals::{spi::SpiDevice, usart::UsartDevice};
 
 #[derive(Debug, Deserialize, Default)]
-pub struct DevicesConfig {
+pub struct ExtDevicesConfig {
    pub spi_flashes: Option<Vec<SpiFlashConfig>>,
    pub usart_probes: Option<Vec<UsartProbeConfig>>,
 }
 
-pub struct Devices {
-    pub spi_flashes: Vec<SpiFlash>,
-    pub usart_probes: Vec<UsartProbe>,
+#[derive(Default)]
+pub struct ExtDevices {
+    pub spi_flashes: Vec<Rc<RefCell<SpiFlash>>>,
+    pub usart_probes: Vec<Rc<RefCell<UsartProbe>>>,
 }
 
-impl Devices {
-    pub fn assert_empty(&self) -> Result<()> {
-        for spi_flash in &self.spi_flashes {
-            bail!("SPI Flash not used: {}", spi_flash.config.peripheral);
-        }
-        for usart_io in &self.usart_probes {
-            bail!("USART IO not used: {}", usart_io.config.peripheral);
-        }
-        Ok(())
+impl ExtDevices {
+    pub fn find_spi_device(&self, peri_name: &str) -> Option<Rc<RefCell<dyn SpiDevice>>> {
+        self.spi_flashes.iter()
+            .filter(|d| d.borrow().config.peripheral == peri_name)
+            .next()
+            .map(|d| d.clone() as Rc<RefCell<dyn SpiDevice>>)
+    }
+
+    pub fn find_usart_device(&self, peri_name: &str) -> Option<Rc<RefCell<dyn UsartDevice>>> {
+        self.usart_probes.iter()
+            .filter(|d| d.borrow().config.peripheral == peri_name)
+            .next()
+            .map(|d| d.clone() as Rc<RefCell<dyn UsartDevice>>)
     }
 }
 
-impl TryFrom<DevicesConfig> for Devices {
+impl TryFrom<ExtDevicesConfig> for ExtDevices {
     type Error = anyhow::Error;
 
-    fn try_from(config: DevicesConfig) -> Result<Self> {
+    fn try_from(config: ExtDevicesConfig) -> Result<Self> {
         let spi_flashes = config.spi_flashes.unwrap_or_default().into_iter()
-            .map(|config| config.try_into())
+            .map(|config| config.try_into().map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
         let usart_probes = config.usart_probes.unwrap_or_default().into_iter()
-            .map(|config| config.try_into())
+            .map(|config| config.try_into().map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
         Ok(Self { spi_flashes, usart_probes })

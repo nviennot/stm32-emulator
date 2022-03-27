@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::{collections::HashMap, mem::MaybeUninit, cell::RefCell, rc::Rc, sync::atomic::{AtomicU64, Ordering, AtomicBool}};
-use svd_parser::svd::Device;
-use unicorn_engine::{unicorn_const::{Arch, Mode, Permission, HookType, MemType}, Unicorn, RegisterARM};
-use crate::{config::Config, util::{round_up, UniErr, read_file}, peripherals::Peripherals, Args, ext_devices::Devices};
-use anyhow::{Context, Result};
+use std::{mem::MaybeUninit, sync::atomic::{AtomicU64, Ordering, AtomicBool}};
+use svd_parser::svd::Device as SvdDevice;
+use unicorn_engine::{unicorn_const::{Arch, Mode, HookType, MemType}, Unicorn, RegisterARM};
+use crate::{config::Config, util::UniErr, Args};
+use anyhow::{Context as _, Result};
 
 #[repr(C)]
 struct VectorTable {
@@ -23,85 +23,6 @@ impl VectorTable {
     }
 }
 
-pub fn load_memory_regions(uc: &mut Unicorn<()>, config: &Config) -> Result<()> {
-    for region in &config.regions {
-        debug!("Mapping region start=0x{:08x} len=0x{:x} name={}",
-            region.start, region.size, region.name);
-
-        let size = round_up(region.size as usize, 4096);
-        uc.mem_map(region.start.into(), size, Permission::ALL)
-            .map_err(UniErr).with_context(||
-                format!("Memory mapping of peripheral={} failed", region.name))?;
-
-        if let Some(ref load) = region.load {
-            info!("Loading file={} at base=0x{:08x}", load, region.start);
-            let content = read_file(load)?;
-            let content = &content[0..content.len().min(size)];
-            uc.mem_write(region.start.into(), content).map_err(UniErr)?;
-        }
-    }
-
-    for patch in config.patches.as_ref().unwrap_or(&vec![]) {
-        uc.mem_write(patch.start.into(), &patch.data)
-            .map_err(UniErr).with_context(||
-                format!("Failed to apply patch at addr={}", patch.start))?;
-    }
-
-    Ok(())
-}
-
-pub fn init_peripherals(uc: &mut Unicorn<()>, mut svd_device: Device, devices: &mut Devices) -> Result<Rc<RefCell<Peripherals>>> {
-    let mut peripherals = Peripherals::new();
-
-    svd_device.peripherals.sort_by_key(|f| f.base_address);
-    let svd_peripherals = svd_device.peripherals.iter()
-        .map(|d| (d.name.to_string(), d))
-        .collect::<HashMap<_,_>>();
-
-    for p in &svd_device.peripherals {
-        let name = &p.name;
-        let base = p.base_address;
-
-        let p = if let Some(derived_from) = p.derived_from.as_ref() {
-            svd_peripherals.get(derived_from)
-                .as_ref()
-                .unwrap_or_else(|| panic!("Cannot find peripheral {}", derived_from))
-        } else {
-            p
-        };
-
-        let regs = crate::util::extract_svd_registers(p);
-
-        peripherals.register_peripheral(name.to_string(), base as u32, &regs, devices);
-
-        if crate::verbose() >= 3 {
-            for r in &regs {
-                trace!("p={} addr=0x{:08x} reg_name={}", p.name, p.base_address as u32 + r.address_offset, r.name);
-            }
-        }
-    }
-
-    peripherals.finish_registration();
-
-    let peripherals = Rc::new(RefCell::new(peripherals));
-
-    for (start, end) in Peripherals::MEMORY_MAPS {
-        let read_peripherals = peripherals.clone();
-        let write_peripherals = peripherals.clone();
-        let read_cb =  move |uc: &mut Unicorn<'_, ()>, addr, size| {
-            read_peripherals.borrow_mut().read(uc, start + addr as u32, size as u8) as u64
-        };
-        let write_cb = move |uc: &mut Unicorn<'_, ()>, addr, size, value| {
-            write_peripherals.borrow_mut().write(uc, start + addr as u32, size as u8, value as u32)
-        };
-
-        uc.mmio_map(start as u64, (end-start) as usize, Some(read_cb), Some(write_cb))
-            .map_err(UniErr).context("Failed to mmio_map()")?;
-    }
-
-    Ok(peripherals)
-}
-
 fn thumb(pc: u64) -> u64 {
     pc | 1
 }
@@ -111,15 +32,13 @@ pub static mut LAST_INSTRUCTION: (u32, u8) = (0,0);
 pub static NUM_INSTRUCTIONS: AtomicU64 = AtomicU64::new(0);
 static CONTINUE_EXECUTION: AtomicBool = AtomicBool::new(false);
 
-pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
+pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result<()> {
     let mut uc = Unicorn::new(Arch::ARM, Mode::MCLASS | Mode::LITTLE_ENDIAN)
         .map_err(UniErr).context("Failed to initialize Unicorn instance")?;
 
-    load_memory_regions(&mut uc, &config)?;
+    let vector_table_addr = config.cpu.vector_table;
 
-    let mut devices = config.devices.unwrap_or(Default::default()).try_into()?;
-    init_peripherals(&mut uc, device, &mut devices)?;
-    devices.assert_empty()?;
+    let _sys = crate::system::prepare(&mut uc, config, svd_device)?;
 
     // Important to keep. Otherwise pc is not accurate due to prefetching and all.
     let trace_instructions = crate::verbose() >= 4;
@@ -160,7 +79,7 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
         false
     }).expect("add_mem_hook failed");
 
-    let vector_table = VectorTable::from_memory(&uc, config.cpu.vector_table)?;
+    let vector_table = VectorTable::from_memory(&uc, vector_table_addr)?;
     uc.reg_write(RegisterARM::SP, vector_table.sp.into()).map_err(UniErr)?;
 
     info!("Starting emulation");
