@@ -44,7 +44,7 @@ impl Gpio {
     }
 
     fn port_str(&self, port: u8) -> String {
-        format!("GPIO P{}{}", self.block, port)
+        format!("GPIO{} P{}{}", self.block, self.block, port)
     }
 }
 

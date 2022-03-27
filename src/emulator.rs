@@ -36,7 +36,8 @@ pub fn load_memory_regions(uc: &mut Unicorn<()>, config: &Config) -> Result<()> 
         if let Some(ref load) = region.load {
             info!("Loading file={} at base=0x{:08x}", load, region.start);
             let content = read_file(load)?;
-            uc.mem_write(region.start.into(), &content).map_err(UniErr)?;
+            let content = &content[0..content.len().min(size)];
+            uc.mem_write(region.start.into(), content).map_err(UniErr)?;
         }
     }
 
@@ -191,7 +192,7 @@ pub fn run_emulator(config: Config, device: Device, args: Args) -> Result<()> {
             continue;
         }
 
-        info!("Execution done. pc=0x{:08x}", pc);
+        info!("Emulation stop");
         result?;
         break;
     }

@@ -1,7 +1,11 @@
 cpu:
   svd: stm32f407.svd
   vector_table: 0x08020000
+  #id: 0x1234_5678_BABE_1234_5678_BABE
 regions:
+  - name: NULL_guard
+    start: 0x00000000
+    size: 4096
   - name: ROM
     start: 0x08020000
     load: saturn-v4.4.3-pj-v5.bin
