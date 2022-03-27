@@ -98,9 +98,15 @@ impl SpiFlash {
                 while let Some(a) = spi.tx.pop_front() {
                     addr = (addr << 8) | a as usize;
                 }
-                //let addr = ((addr & 0xFF) << 16) | (addr & 0x00FF00) | (addr >> 16);
 
-                info!("{} cmd={:?} addr=0x{:06x}", spi.name, cmd, addr);
+                let addr = if addr > self.config.size {
+                    warn!("{} cmd={:?} addr=0x{:06x} larger than size={:06x}",
+                        spi.name, cmd, addr, self.config.size);
+                    addr % self.config.size
+                } else {
+                    info!("{} cmd={:?} addr=0x{:06x}", spi.name, cmd, addr);
+                    addr
+                };
 
                 self.read_addr = Some(addr);
                 spi.rx = vec![].into();
