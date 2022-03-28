@@ -58,8 +58,8 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
         }
     }).expect("add_code_hook failed");
 
-    uc.add_intr_hook(|_uc, addr| {
-        trace!("intr_hook {:08x}", addr);
+    uc.add_intr_hook(|_uc, inton| {
+        error!("intr_hook intno={:08x}", inton);
     }).expect("add_intr_hook failed");
 
     uc.add_mem_hook(HookType::MEM_UNMAPPED, 0, u64::MAX, |uc, type_, addr, size, value| {

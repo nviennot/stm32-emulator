@@ -7,6 +7,7 @@ pub mod systick;
 pub mod gpio;
 pub mod dma;
 pub mod fsmc;
+pub mod i2c;
 
 use rcc::*;
 use spi::*;
@@ -15,6 +16,7 @@ use systick::*;
 use gpio::*;
 use dma::*;
 use fsmc::*;
+use i2c::*;
 
 use std::{collections::{BTreeMap, VecDeque, HashMap}, cell::RefCell};
 use svd_parser::svd::{RegisterInfo, Device as SvdDevice};
@@ -62,6 +64,7 @@ impl Peripherals {
             .or_else(||   Usart::new(&name, ext_devices))
             .or_else(||    Fsmc::new(&name, ext_devices))
             .or_else(||     Rcc::new(&name))
+            .or_else(||     I2c::new(&name))
             .or_else(||     Dma::new(&name))
             .or_else(||     Spi::new(&name, ext_devices))
         ;
