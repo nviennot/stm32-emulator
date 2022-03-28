@@ -47,7 +47,7 @@ impl SpiDevice for SpiFlash {
 
     fn xfer(&mut self, spi: &mut Spi) -> Option<VecDeque<u8>> {
         spi.tx.front().cloned().map(|cmd| {
-            if cmd == 0xFF {
+            if cmd == 0xFF || cmd == 0x00 {
                 spi.tx.pop_front();
                 self.next_content_read(spi)
             } else if let Some(cmd) = Command::try_from(cmd).ok() {
@@ -57,7 +57,7 @@ impl SpiDevice for SpiFlash {
             } else {
                 spi.rx = vec![].into();
                 self.read_addr = None;
-                debug!("{} tx={:02x?}", spi.name, spi.tx);
+                //debug!("{} tx={:02x?}", spi.name, spi.tx);
                 None
             }
         }).flatten()
@@ -112,6 +112,11 @@ impl SpiFlash {
                 spi.rx = vec![].into();
                 self.next_content_read(spi)
             }
+            Command::ReadDeviceID => {
+                spi.tx.pop_front();
+                let id: u32 = 0xAABBCC;
+                Some(vec![(id >> 16) as u8, (id >> 8) as u8, (id >> 0) as u8].into())
+            }
             _ => None,
         }
     }
@@ -122,4 +127,5 @@ impl SpiFlash {
 enum Command {
     ReadData = 0x03,
     ReadJEDECID = 0x9F,
+    ReadDeviceID = 0x90,
 }

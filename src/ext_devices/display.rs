@@ -12,6 +12,7 @@ pub struct DisplayConfig {
     pub peripheral: String,
     pub width: u16,
     pub height: u16,
+    pub cmd_addr_bit: u32,
 }
 
 pub struct Display {
@@ -142,15 +143,15 @@ impl FsmcDevice for Display {
     }
 
     fn read_data(&mut self, bank: &mut Bank, offset: u32) -> u32 {
-        debug!("{} READ {:?}", bank.name, Mode::from_addr(offset));
+        debug!("{} READ {:?}", bank.name, Mode::from_addr(self.config.cmd_addr_bit, offset));
         self.finish_cmd(bank);
         0
     }
 
     fn write_data(&mut self, bank: &mut Bank, offset: u32, value: u32) {
-        let mode = Mode::from_addr(offset);
+        let mode = Mode::from_addr(self.config.cmd_addr_bit, offset);
         trace!("{} WRITE {:?} value=0x{:04x}", bank.name, mode, value as u16);
-        match Mode::from_addr(offset) {
+        match mode {
             Mode::Cmd => {
                 self.finish_cmd(bank);
                 self.cmd = Some((value as u8, vec![]));
@@ -184,8 +185,8 @@ enum Command {
 }
 
 impl Mode {
-    fn from_addr(offset: u32) -> Mode {
-        if offset & (1 << (12+1)) != 0 {
+    fn from_addr(data_addr_bit: u32, offset: u32) -> Mode {
+        if offset & data_addr_bit != 0 {
             Mode::Data
         } else {
             Mode::Cmd

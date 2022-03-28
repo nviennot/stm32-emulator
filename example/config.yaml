@@ -28,6 +28,7 @@ devices:
     - peripheral: FSMC.BANK1
       width: 320
       height: 240
+      cmd_addr_bit: 0x2000
 patches:
   # NOP a delay_us()
   - start: 0x08051e98

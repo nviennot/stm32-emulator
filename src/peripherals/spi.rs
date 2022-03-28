@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-
 use crate::system::System;
 use super::Peripheral;
 
@@ -49,15 +48,13 @@ impl Peripheral for Spi {
             }
             0x000C => {
                 // DR register
-                if self.bits16 {
-                    if self.rx.len() >= 2 {
+                match (self.bits16, self.rx.len()) {
+                    (false, 1..) => self.rx.pop_front().unwrap() as u32,
+                    (true,  2..) => {
                         ((self.rx.pop_front().unwrap() as u32) << 8) |
                           self.rx.pop_front().unwrap() as u32
-                    } else {
-                        0
                     }
-                } else {
-                    self.rx.pop_front().unwrap_or(0) as u32
+                    _ => 0
                 }
             }
             _ => 0
