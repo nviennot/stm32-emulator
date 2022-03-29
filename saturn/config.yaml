@@ -17,14 +17,14 @@ regions:
     start: 0x20000000
     size: 0x20000
 devices:
-  spi_flashes:
+  spi_flash:
     - peripheral: SPI3
       jedec_id: 0xef4016
       file: saturn-v4.4.3-pj-v5-ui.bin
       size: 0x400000
-  usart_probes:
+  usart_probe:
     - peripheral: USART1
-  displays:
+  display:
     - peripheral: FSMC.BANK1
       width: 320
       height: 240
