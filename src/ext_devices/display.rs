@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::system::System;
+use crate::{system::System, util::{Rect, Point}};
 use super::ExtDevice;
 
 #[derive(Debug, Deserialize)]
@@ -27,20 +27,6 @@ pub struct Display {
     framebuffer_raw: Vec<u16>,
 }
 
-#[derive(Default, Debug)]
-pub struct Point {
-    x: u16,
-    y: u16,
-}
-
-#[derive(Default, Debug)]
-pub struct Rect {
-    left: u16,
-    right: u16,
-    top: u16,
-    bottom: u16,
-}
-
 impl Display {
     pub fn new(config: DisplayConfig) -> Result<Self> {
         let mut framebuffer_raw = Vec::new();
@@ -52,8 +38,8 @@ impl Display {
             cmd: None,
             drawing: false,
             current_position: Point::default(),
-            config,
             framebuffer_raw,
+            config,
         })
     }
 

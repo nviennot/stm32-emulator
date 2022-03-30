@@ -3,10 +3,12 @@
 mod spi_flash;
 mod usart_probe;
 mod display;
+mod lcd;
 
 use spi_flash::{SpiFlashConfig, SpiFlash};
 use usart_probe::{UsartProbeConfig, UsartProbe};
 use display::{DisplayConfig, Display};
+use lcd::{LcdConfig, Lcd};
 
 use std::{convert::TryFrom, rc::Rc, cell::RefCell};
 use serde::Deserialize;
@@ -14,15 +16,17 @@ use anyhow::Result;
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ExtDevicesConfig {
-   pub spi_flash: Option<Vec<SpiFlashConfig>>,
-   pub usart_probe: Option<Vec<UsartProbeConfig>>,
-   pub display: Option<Vec<DisplayConfig>>,
+    pub spi_flash: Option<Vec<SpiFlashConfig>>,
+    pub usart_probe: Option<Vec<UsartProbeConfig>>,
+    pub display: Option<Vec<DisplayConfig>>,
+    pub lcd: Option<Vec<LcdConfig>>,
 }
 
 pub struct ExtDevices {
     pub spi_flashes: Vec<Rc<RefCell<SpiFlash>>>,
     pub usart_probes: Vec<Rc<RefCell<UsartProbe>>>,
     pub displays: Vec<Rc<RefCell<Display>>>,
+    pub lcds: Vec<Rc<RefCell<Lcd>>>,
 }
 
 impl ExtDevices {
@@ -33,6 +37,12 @@ impl ExtDevices {
             .map(|d| d.clone() as Rc<RefCell<dyn ExtDevice<(), u8>>>)
         .or_else(||
         self.usart_probes.iter()
+            .filter(|d| d.borrow().config.peripheral == peri_name)
+            .next()
+            .map(|d| d.clone() as Rc<RefCell<dyn ExtDevice<(), u8>>>)
+       )
+        .or_else(||
+        self.lcds.iter()
             .filter(|d| d.borrow().config.peripheral == peri_name)
             .next()
             .map(|d| d.clone() as Rc<RefCell<dyn ExtDevice<(), u8>>>)
@@ -63,7 +73,11 @@ impl TryFrom<ExtDevicesConfig> for ExtDevices {
             .map(|config| Display::new(config).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
-        Ok(Self { spi_flashes, usart_probes, displays })
+        let lcds = config.lcd.unwrap_or_default().into_iter()
+            .map(|config| Lcd::new(config).map(RefCell::new).map(Rc::new))
+            .collect::<Result<_>>()?;
+
+        Ok(Self { spi_flashes, usart_probes, displays, lcds })
     }
 }
 

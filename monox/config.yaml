@@ -28,3 +28,20 @@ devices:
       height: 320
       cmd_addr_bit: 0x20000
       swap_bytes: true
+  lcd:
+    - peripheral: SPI1
+      width: 3840
+      height: 2400
+patches:
+  # NOP systick delay
+  - start: 0x0800b656
+    data: [0x70, 0x47]
+  # NOP delay_cycle
+  - start: 0x0800d434
+    data: [0x70, 0x47]
+  # NOP display drawing
+  # - start: 0x08018b58
+  #  data: [0x70, 0x47]
+  # NOP LCD init drawing
+  # - start: 0x0800e4da
+  #   data: [0x70, 0x47]
