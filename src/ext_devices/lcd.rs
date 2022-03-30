@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::{convert::TryFrom, collections::VecDeque};
+use std::{convert::TryFrom, collections::VecDeque, rc::Rc, cell::RefCell};
 
 use anyhow::Result;
+use sdl2::{render::Canvas, video::Window, pixels::PixelFormatEnum, surface::Surface};
 use serde::Deserialize;
 
-use crate::system::System;
+use crate::{system::System, sdl::Sdl, util::Point};
 use super::ExtDevice;
 
 #[derive(Debug, Deserialize)]
@@ -20,64 +21,77 @@ pub struct Lcd {
     name: String,
 
     current_position: Point,
-    framebuffer_raw: Vec<u8>,
 
     //reply: Option<Reply>,
     cmd: Option<(Command, Vec<u8>)>,
     drawing: bool,
-}
-
-#[derive(Default, Debug)]
-pub struct Point {
-    x: u16,
-    y: u16,
+    sdl: Rc<RefCell<Sdl>>,
+    canvas: Canvas<Window>,
+    framebuffer: Surface<'static>,
 }
 
 impl Lcd {
-    pub fn new(config: LcdConfig) -> Result<Self> {
-        let mut framebuffer_raw = Vec::new();
-        framebuffer_raw.resize(config.height as usize * config.width as usize, 0);
+    pub fn new(config: LcdConfig, sdl: &Rc<RefCell<Sdl>>) -> Result<Self> {
+        let canvas = sdl.borrow_mut().new_canvas(
+            "LCD",
+            config.width as u32,
+            config.height as u32
+        );
+
+        let framebuffer = Surface::new(
+            config.width.into(),
+            config.height.into(),
+            PixelFormatEnum::Index8
+        ).unwrap();
 
         Ok(Self {
             name: "".to_string(),
             config,
             current_position: Point::default(),
-            framebuffer_raw,
             cmd: None,
             drawing: false,
+            sdl: sdl.clone(),
+            canvas,
+            framebuffer,
         })
     }
 
-    pub fn _write_framebuffer_to_file(&self, file: &str) -> Result<()> {
-        use std::io::prelude::*;
-        let mut f = std::fs::File::create(file)?;
-        f.write_all(&self.framebuffer_raw)?;
-
-        info!("Wrote framebuffer to {}", file);
-        Ok(())
-    }
-
     #[inline]
-    fn get_framebuffer_raw_pixel(&mut self, x: u16, y: u16) -> &mut u8 {
-        let x = x.min(self.config.width-1);
-        let y = y.min(self.config.height-1);
+    fn get_framebuffer_pixel(&mut self, x: u16, y: u16) -> &mut u8 {
         let x = x as usize;
         let y = y as usize;
-        &mut self.framebuffer_raw[(x + y * self.config.width as usize)]
+
+        let fb = self.framebuffer.without_lock_mut().unwrap();
+        let fb_ptr = fb.as_mut_ptr() as *mut u8;
+
+        unsafe {
+            fb_ptr.add(x + y * self.config.width as usize).as_mut().unwrap()
+        }
     }
 
-    fn draw_pixel(&mut self, c: u8) {
-        let Point { mut x, mut y } = self.current_position;
-        let c = c << 4;
-        *self.get_framebuffer_raw_pixel(x, y) = c;
 
-        if x == 0 {
-            debug!("{} p={},{} v={:02x}", self.name, x, y, c);
+    fn redraw(&mut self, sys: &System) {
+        let tc = self.canvas.texture_creator();
+        let texture = self.framebuffer.as_texture(&tc).unwrap();
+        self.canvas.copy(&texture, None, None).unwrap();
+
+        warn!("Redraw");
+
+        self.canvas.present();
+        if !self.sdl.borrow_mut().pump_events() {
+            sys.uc.borrow_mut().emu_stop().unwrap();
         }
+    }
 
-        x += 1;
+    fn draw_pixel_pair(&mut self, c: u8) {
+        let Point { mut x, mut y } = self.current_position;
+
+        *self.get_framebuffer_pixel(x,y) = c;
+        *self.get_framebuffer_pixel(x+1,y) = c;
+
+        x += 2;
         if x >= self.config.width {
-            x = 0;
+            x = x % 2;
             y += 1;
 
             if y >= self.config.height {
@@ -115,10 +129,14 @@ impl ExtDevice<(), u8> for Lcd {
         0
     }
 
-    fn write(&mut self, _sys: &System, _addr: (), v: u8) {
+    fn write(&mut self, sys: &System, _addr: (), v: u8) {
         if self.drawing {
-            self.draw_pixel(v >> 4);
-            self.draw_pixel(v & 0x0F);
+            self.draw_pixel_pair(v);
+
+            if self.sdl.borrow_mut().should_redraw() || self.current_position == Point::default() {
+                self.redraw(sys);
+            }
+
             return;
         }
 

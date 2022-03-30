@@ -1,11 +1,12 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-late
 
-use std::convert::TryFrom;
+use std::{convert::TryFrom, rc::Rc, cell::RefCell};
 
 use anyhow::Result;
+use sdl2::{render::Canvas, video::Window, surface::Surface, pixels::PixelFormatEnum};
 use serde::Deserialize;
 
-use crate::{system::System, util::{Rect, Point}};
+use crate::{system::System, util::{Rect, Point}, sdl::Sdl};
 use super::ExtDevice;
 
 #[derive(Debug, Deserialize)]
@@ -25,12 +26,27 @@ pub struct Display {
     drawing: bool,
     current_position: Point,
     framebuffer_raw: Vec<u16>,
+    sdl: Rc<RefCell<Sdl>>,
+    canvas: Canvas<Window>,
+    framebuffer: Surface<'static>,
 }
 
 impl Display {
-    pub fn new(config: DisplayConfig) -> Result<Self> {
+    pub fn new(config: DisplayConfig, sdl: &Rc<RefCell<Sdl>>) -> Result<Self> {
         let mut framebuffer_raw = Vec::new();
         framebuffer_raw.resize(config.height as usize * config.width as usize, 0);
+
+        let canvas = sdl.borrow_mut().new_canvas(
+            "display",
+            config.width as u32,
+            config.height as u32
+        );
+
+        let framebuffer = Surface::new(
+            config.width.into(),
+            config.height.into(),
+            PixelFormatEnum::RGB565,
+        ).unwrap();
 
         Ok(Self {
             name: "".to_string(),
@@ -40,6 +56,9 @@ impl Display {
             current_position: Point::default(),
             framebuffer_raw,
             config,
+            sdl: sdl.clone(),
+            canvas,
+            framebuffer,
         })
     }
 
@@ -59,12 +78,34 @@ impl Display {
     }
 
     #[inline]
+    fn get_framebuffer_pixel(&mut self, x: u16, y: u16) -> &mut u16 {
+        let x = x as usize;
+        let y = y as usize;
+
+        let fb = self.framebuffer.without_lock_mut().unwrap();
+        let fb_ptr = fb.as_mut_ptr() as *mut u16;
+
+        unsafe {
+            fb_ptr.add(x + y * self.config.width as usize).as_mut().unwrap()
+        }
+    }
+
+    #[inline]
     fn get_framebuffer_raw_pixel(&mut self, x: u16, y: u16) -> &mut u16 {
-        let x = x.min(self.config.width-1);
-        let y = y.min(self.config.height-1);
         let x = x as usize;
         let y = y as usize;
         &mut self.framebuffer_raw[(x + y * self.config.width as usize)]
+    }
+
+    fn redraw(&mut self, sys: &System) {
+        let tc = self.canvas.texture_creator();
+        let texture = self.framebuffer.as_texture(&tc).unwrap();
+        self.canvas.copy(&texture, None, None).unwrap();
+
+        self.canvas.present();
+        if !self.sdl.borrow_mut().pump_events() {
+            sys.uc.borrow_mut().emu_stop().unwrap();
+        }
     }
 
     fn draw_pixel(&mut self, c: u16) {
@@ -76,6 +117,7 @@ impl Display {
 
         let Point { mut x, mut y } = self.current_position;
         *self.get_framebuffer_raw_pixel(x, y) = c;
+        *self.get_framebuffer_pixel(x, y) = c;
 
         x += 1;
         if x > self.draw_region.right {
@@ -97,16 +139,19 @@ impl Display {
                 (Some(cmd @ Command::SetHoriRegion), 4) => {
                     let left  = (args[0] << 8) | args[1];
                     let right = (args[2] << 8) | args[3];
-                    self.draw_region.left = left;
-                    self.draw_region.right = right;
                     debug!("{} cmd={:?} left={} right={}", self.name, cmd, left, right);
+
+                    self.draw_region.left = left.min(self.config.width-1);
+                    self.draw_region.right = right.min(self.config.width-1);
                 }
                 (Some(cmd @ Command::SetVertRegion), 4) => {
                     let top    = (args[0] << 8) | args[1];
                     let bottom = (args[2] << 8) | args[3];
-                    self.draw_region.top = top;
-                    self.draw_region.bottom = bottom;
                     debug!("{} cmd={:?} top={} bottom={}", self.name, cmd, top, bottom);
+
+                    self.draw_region.top = top.min(self.config.height-1);
+                    self.draw_region.bottom = bottom.min(self.config.height-1);
+
                 }
                 (Some(Command::Draw), 0) => {
                     self.drawing = true;
@@ -143,7 +188,7 @@ impl ExtDevice<u32, u32> for Display {
         0
     }
 
-    fn write(&mut self, _sys: &System, addr: u32, value: u32) {
+    fn write(&mut self, sys: &System, addr: u32, value: u32) {
         let mode = Mode::from_addr(self.config.cmd_addr_bit, addr);
         trace!("{} WRITE {:?} value=0x{:04x}", self.name, mode, value as u16);
         match mode {
@@ -154,7 +199,11 @@ impl ExtDevice<u32, u32> for Display {
             Mode::Data => {
                 if self.drawing {
                     self.draw_pixel(value as u16);
-                } else if let Some((_cmd, args)) = self.cmd.as_mut() {
+                    if self.sdl.borrow_mut().should_redraw() || self.current_position == Point::default() {
+                        self.redraw(sys);
+                    }
+                }
+                 else if let Some((_cmd, args)) = self.cmd.as_mut() {
                     args.push(value as u16);
                 }
             }

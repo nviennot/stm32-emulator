@@ -2,7 +2,7 @@
 
 use std::{rc::Rc, cell::RefCell};
 use unicorn_engine::{Unicorn, unicorn_const::Permission};
-use crate::{peripherals::Peripherals, ext_devices::ExtDevices, util::{UniErr, round_up, self}, config::Config};
+use crate::{peripherals::Peripherals, ext_devices::ExtDevices, util::{UniErr, round_up, self}, config::Config, sdl::Sdl};
 use anyhow::{Context as _, Result};
 use svd_parser::svd::Device as SvdDevice;
 
@@ -14,13 +14,21 @@ pub struct System<'a, 'b> {
     pub d: Rc<ExtDevices>,
 }
 
-fn bind(uc: &mut Unicorn<()>, peripherals: &Rc<Peripherals>, ext_devices: &Rc<ExtDevices>) -> Result<()> {
+fn bind(
+    uc: &mut Unicorn<()>,
+    peripherals: &Rc<Peripherals>,
+    ext_devices: &Rc<ExtDevices>,
+) -> Result<()> {
     for (start, end) in Peripherals::MEMORY_MAPS {
         let read_cb = {
             let peripherals = peripherals.clone();
             let ext_devices = ext_devices.clone();
             move |uc: &mut Unicorn<'_, ()>, addr, size| {
-                let mut sys = System { uc: RefCell::new(uc), p: peripherals.clone(), d: ext_devices.clone() };
+                let mut sys = System {
+                    uc: RefCell::new(uc),
+                    p: peripherals.clone(),
+                    d: ext_devices.clone(),
+                };
                 peripherals.read(&mut sys, start + addr as u32, size as u8) as u64
             }
         };
@@ -29,7 +37,11 @@ fn bind(uc: &mut Unicorn<()>, peripherals: &Rc<Peripherals>, ext_devices: &Rc<Ex
             let peripherals = peripherals.clone();
             let ext_devices = ext_devices.clone();
             move |uc: &mut Unicorn<'_, ()>, addr, size, value| {
-                let mut sys = System { uc: RefCell::new(uc), p: peripherals.clone(), d: ext_devices.clone() };
+                let mut sys = System {
+                    uc: RefCell::new(uc),
+                    p: peripherals.clone(),
+                    d: ext_devices.clone(),
+                };
                 peripherals.write(&mut sys, start + addr as u32, size as u8, value as u32)
             }
         };
@@ -71,12 +83,15 @@ fn load_memory_regions(uc: &mut Unicorn<()>, config: &Config) -> Result<()> {
 pub fn prepare<'a, 'b>(uc: &'a mut Unicorn<'b, ()>, config: Config, svd_device: SvdDevice) -> Result<System<'a, 'b>> {
     load_memory_regions(uc, &config)?;
 
-    let ext_devices = Rc::new(config.devices.unwrap_or(Default::default()).try_into()?);
+    let sdl = Rc::new(RefCell::new(Sdl::new()));
+    let ext_devices = Rc::new(ExtDevices::new(config.devices.unwrap_or(Default::default()), &sdl)?);
     let peripherals = Rc::new(Peripherals::from_svd(svd_device, &ext_devices));
 
     bind(uc, &peripherals, &ext_devices)?;
 
     Ok(System {
-        uc: RefCell::new(uc), p: peripherals, d: ext_devices,
+        uc: RefCell::new(uc),
+        p: peripherals,
+        d: ext_devices,
     })
 }

@@ -96,7 +96,7 @@ pub fn extract_svd_registers(p: &MaybeArray<PeripheralInfo>) -> Vec<RegisterInfo
 }
 
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub struct Point {
     pub x: u16,
     pub y: u16,

@@ -6,6 +6,7 @@ mod util;
 mod peripherals;
 mod ext_devices;
 mod system;
+mod sdl;
 
 use std::io::prelude::*;
 use std::sync::atomic::Ordering::Relaxed;
