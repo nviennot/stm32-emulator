@@ -14,6 +14,7 @@ pub struct DisplayConfig {
     pub width: u16,
     pub height: u16,
     pub cmd_addr_bit: u32,
+    pub swap_bytes: Option<bool>,
 }
 
 pub struct Display {
@@ -81,7 +82,11 @@ impl Display {
     }
 
     fn draw_pixel(&mut self, c: u16) {
-        let c = c.swap_bytes();
+        let c = if self.config.swap_bytes.unwrap_or_default() {
+            c.swap_bytes()
+        } else {
+            c
+        };
 
         let Point { mut x, mut y } = self.current_position;
         *self.get_framebuffer_raw_pixel(x, y) = c;

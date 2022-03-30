@@ -27,3 +27,4 @@ devices:
       width: 480
       height: 320
       cmd_addr_bit: 0x20000
+      swap_bytes: true
