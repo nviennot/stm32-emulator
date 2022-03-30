@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{system::System, ext_devices::ExtDevices};
+use crate::{system::System, ext_devices::{ExtDevices, ExtDevice}};
 use super::Peripheral;
 
 pub struct Fsmc {
@@ -91,46 +91,40 @@ pub trait FsmcDevice {
 
 pub struct Bank {
     pub name: String,
-    ext_device: Option<Rc<RefCell<dyn FsmcDevice>>>,
+    ext_device: Option<Rc<RefCell<dyn ExtDevice<u32, u32>>>>,
 }
 
 impl Bank {
     pub fn new(bank: usize, ext_devices: &ExtDevices) -> Self {
         let name = format!("FSMC.BANK{}", bank+1);
 
-        let ext_device = ext_devices.find_fsmc_device(&name);
+        let ext_device = ext_devices.find_mem_device(&name);
         let name = ext_device.as_ref()
-            .map(|d| d.borrow().name(&name))
+            .map(|d| d.borrow_mut().connect_peripheral(&name))
             .unwrap_or(name);
 
         Self { name, ext_device }
     }
 
-    fn read_data(&mut self, _sys: &System, offset: u32) -> u32 {
-        let v = if let Some(ext_device) = self.ext_device.as_mut() {
-            ext_device.clone().borrow_mut().read_data(self, offset)
-        } else {
-            0
-        };
+    fn read_data(&mut self, sys: &System, offset: u32) -> u32 {
+        let v = self.ext_device.as_ref().map(|d|
+            d.borrow_mut().read(sys, offset)
+        ).unwrap_or_default();
 
-        if crate::verbose() >= 3 {
-            trace!("{} data read at offset=0x{:08x} value=0x{:08x}", self.name, offset, v);
-        }
-        0
+        trace!("{} data read at offset=0x{:08x} value=0x{:08x}", self.name, offset, v);
+
+        v
     }
 
-    fn write_data(&mut self, _sys: &System, offset: u32, value: u32) {
-        if let Some(ext_device) = self.ext_device.as_mut() {
-            ext_device.clone().borrow_mut().write_data(self, offset, value);
-        }
+    fn write_data(&mut self, sys: &System, offset: u32, value: u32) {
+        self.ext_device.as_ref().map(|d|
+            d.borrow_mut().write(sys, offset, value)
+        );
 
-        if crate::verbose() >= 3 {
-            trace!("{} data write at offset=0x{:08x} value=0x{:08x}", self.name, offset, value);
-        }
+        trace!("{} data write at offset=0x{:08x} value=0x{:08x}", self.name, offset, value);
     }
 
     fn read_reg(&mut self, _sys: &System, reg: Reg) -> u32 {
-
         trace!("{} read reg={:?}", self.name, reg);
         0
     }

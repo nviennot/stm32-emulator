@@ -1,43 +1,49 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::collections::VecDeque;
-use std::convert::TryFrom;
-
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::peripherals::usart::{UsartDevice, Usart};
+use crate::system::System;
 
-#[derive(Debug, Deserialize)]
+use super::ExtDevice;
+
+#[derive(Debug, Deserialize, Default)]
 pub struct UsartProbeConfig {
     pub peripheral: String,
 }
 
+#[derive(Default)]
 pub struct UsartProbe {
     pub config: UsartProbeConfig,
+    name: String,
+    rx: Vec<u8>,
 }
 
-impl TryFrom<UsartProbeConfig> for UsartProbe {
-    type Error = anyhow::Error;
-
-    fn try_from(config: UsartProbeConfig) -> Result<Self> {
-        Ok(Self { config })
+impl UsartProbe {
+    pub fn new(config: UsartProbeConfig) -> Result<Self> {
+        Ok(Self { config, ..Self::default() })
     }
 }
 
-impl UsartDevice for UsartProbe {
-    fn name(&self, usart_name: &str) -> String {
-        format!("{} usart-probe", usart_name)
+impl ExtDevice<(), u8> for UsartProbe {
+    fn connect_peripheral(&mut self, peri_name: &str) -> String {
+        self.name = format!("{} usart-probe", peri_name);
+        self.name.clone()
     }
 
-    fn xfer(&mut self, usart: &mut Usart) -> Option<VecDeque<u8>> {
-        if usart.tx.back() == Some(&0xa) {
-            // end-of-line detected.
-            let line = String::from_utf8_lossy(usart.tx.make_contiguous());
+    fn read(&mut self, _sys: &System, _addr: ()) -> u8 {
+        0
+    }
+
+    fn write(&mut self, _sys: &System, _addr: (), v: u8) {
+        if v == 0x0a {
+            // EOL
+            let line = String::from_utf8_lossy(&self.rx);
             let line = line.trim();
-            info!("usart-probe p={} '{}'", usart.name, line);
-            usart.tx.clear();
+            info!("{} '{}'", self.name, line);
+            self.rx.clear();
+        } else {
+            self.rx.push(v);
         }
-        None
     }
 }

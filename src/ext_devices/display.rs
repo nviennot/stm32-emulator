@@ -5,7 +5,8 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::peripherals::fsmc::{FsmcDevice, Bank};
+use crate::system::System;
+use super::ExtDevice;
 
 #[derive(Debug, Deserialize)]
 pub struct DisplayConfig {
@@ -17,11 +18,12 @@ pub struct DisplayConfig {
 
 pub struct Display {
     pub config: DisplayConfig,
-    pub draw_region: Rect,
-    pub cmd: Option<(u8, Vec<u16>)>,
-    pub drawing: bool,
-    pub current_position: Point,
-    pub framebuffer_raw: Vec<u16>,
+    name: String,
+    draw_region: Rect,
+    cmd: Option<(u8, Vec<u16>)>,
+    drawing: bool,
+    current_position: Point,
+    framebuffer_raw: Vec<u16>,
 }
 
 #[derive(Default, Debug)]
@@ -38,23 +40,22 @@ pub struct Rect {
     bottom: u16,
 }
 
-impl TryFrom<DisplayConfig> for Display {
-    type Error = anyhow::Error;
-
-    fn try_from(config: DisplayConfig) -> Result<Self> {
+impl Display {
+    pub fn new(config: DisplayConfig) -> Result<Self> {
         let mut framebuffer_raw = Vec::new();
         framebuffer_raw.resize(config.height as usize * config.width as usize, 0);
 
-        let draw_region = Rect { left: 0, top: 0, right: config.width-1, bottom: config.height-1 };
-        let current_position = Point::default();
-        let cmd = None;
-        let drawing = false;
-
-        Ok(Self { config, draw_region, cmd, current_position, drawing, framebuffer_raw })
+        Ok(Self {
+            name: "".to_string(),
+            draw_region: Rect { left: 0, top: 0, right: config.width-1, bottom: config.height-1 },
+            cmd: None,
+            drawing: false,
+            current_position: Point::default(),
+            config,
+            framebuffer_raw,
+        })
     }
-}
 
-impl Display {
     pub fn write_framebuffer_to_file(&self, file: &str) -> Result<()> {
         use std::io::prelude::*;
         let mut b = vec![];
@@ -80,6 +81,8 @@ impl Display {
     }
 
     fn draw_pixel(&mut self, c: u16) {
+        let c = c.swap_bytes();
+
         let Point { mut x, mut y } = self.current_position;
         *self.get_framebuffer_raw_pixel(x, y) = c;
 
@@ -97,7 +100,7 @@ impl Display {
 
     }
 
-    fn handle_cmd(&mut self, bank: &Bank) {
+    fn handle_cmd(&mut self) {
         if let Some((cmd, args)) = self.cmd.take() {
             match (Command::try_from(cmd).ok(), args.len()) {
                 (Some(cmd @ Command::SetHoriRegion), 4) => {
@@ -105,14 +108,14 @@ impl Display {
                     let right = (args[2] << 8) | args[3];
                     self.draw_region.left = left;
                     self.draw_region.right = right;
-                    debug!("{} cmd={:?} left={} right={}", bank.name, cmd, left, right);
+                    debug!("{} cmd={:?} left={} right={}", self.name, cmd, left, right);
                 }
                 (Some(cmd @ Command::SetVertRegion), 4) => {
                     let top    = (args[0] << 8) | args[1];
                     let bottom = (args[2] << 8) | args[3];
                     self.draw_region.top = top;
                     self.draw_region.bottom = bottom;
-                    debug!("{} cmd={:?} top={} bottom={}", bank.name, cmd, top, bottom);
+                    debug!("{} cmd={:?} top={} bottom={}", self.name, cmd, top, bottom);
                 }
                 (Some(Command::Draw), 0) => {
                     self.drawing = true;
@@ -129,31 +132,32 @@ impl Display {
         }
     }
 
-    fn finish_cmd(&mut self, bank: &Bank) {
+    fn finish_cmd(&mut self) {
         self.drawing = false;
         if let Some((cmd, args)) = self.cmd.take() {
-            debug!("{} cmd=0x{:02x} args={:02x?}", bank.name, cmd, args);
+            debug!("{} cmd=0x{:02x} args={:02x?}", self.name, cmd, args);
         }
     }
 }
 
-impl FsmcDevice for Display {
-    fn name(&self, fsmc_bank_name: &str) -> String {
-        format!("{} display", fsmc_bank_name)
+impl ExtDevice<u32, u32> for Display {
+    fn connect_peripheral(&mut self, peri_name: &str) -> String {
+        self.name = format!("{} display", peri_name);
+        self.name.clone()
     }
 
-    fn read_data(&mut self, bank: &mut Bank, offset: u32) -> u32 {
-        debug!("{} READ {:?}", bank.name, Mode::from_addr(self.config.cmd_addr_bit, offset));
-        self.finish_cmd(bank);
+    fn read(&mut self, _sys: &System, addr: u32) -> u32 {
+        debug!("{} READ {:?}", self.name, Mode::from_addr(self.config.cmd_addr_bit, addr));
+        self.finish_cmd();
         0
     }
 
-    fn write_data(&mut self, bank: &mut Bank, offset: u32, value: u32) {
-        let mode = Mode::from_addr(self.config.cmd_addr_bit, offset);
-        trace!("{} WRITE {:?} value=0x{:04x}", bank.name, mode, value as u16);
+    fn write(&mut self, _sys: &System, addr: u32, value: u32) {
+        let mode = Mode::from_addr(self.config.cmd_addr_bit, addr);
+        trace!("{} WRITE {:?} value=0x{:04x}", self.name, mode, value as u16);
         match mode {
             Mode::Cmd => {
-                self.finish_cmd(bank);
+                self.finish_cmd();
                 self.cmd = Some((value as u8, vec![]));
             }
             Mode::Data => {
@@ -165,7 +169,7 @@ impl FsmcDevice for Display {
             }
         }
 
-        self.handle_cmd(bank);
+        self.handle_cmd();
     }
 }
 
