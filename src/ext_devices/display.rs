@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::convert::TryFrom;
+use std::{convert::TryFrom, collections::VecDeque};
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -15,6 +15,13 @@ pub struct DisplayConfig {
     pub height: u16,
     pub cmd_addr_bit: u32,
     pub swap_bytes: Option<bool>,
+    pub replies: Option<Vec<ReplyConfig>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReplyConfig {
+    pub cmd: u8,
+    data: Vec<u16>,
 }
 
 pub struct Display {
@@ -22,6 +29,7 @@ pub struct Display {
     name: String,
     draw_region: Rect,
     cmd: Option<(u8, Vec<u16>)>,
+    reply: VecDeque<u16>,
     drawing: bool,
     current_position: Point,
     framebuffer_raw: Vec<u16>,
@@ -36,6 +44,7 @@ impl Display {
             name: "".to_string(),
             draw_region: Rect { left: 0, top: 0, right: config.width-1, bottom: config.height-1 },
             cmd: None,
+            reply: Default::default(),
             drawing: false,
             current_position: Point::default(),
             framebuffer_raw,
@@ -116,6 +125,15 @@ impl Display {
                     }
                 }
                 _ => {
+                    // If we need to reply to a read, put it there.
+                    if let Some(replies) = self.config.replies.as_ref() {
+                        if let Some(reply) = replies.iter().find(|r| r.cmd == cmd) {
+                            self.reply = reply.data.iter().cloned().collect();
+                            debug!("{} cmd={:02x?} reply={:02x?}", self.name, cmd, reply.data);
+                            return;
+                        }
+                    }
+
                     // Not the right time to consume, put it back
                     self.cmd = Some((cmd, args));
                 }
@@ -138,9 +156,19 @@ impl ExtDevice<u32, u32> for Display {
     }
 
     fn read(&mut self, _sys: &System, addr: u32) -> u32 {
-        debug!("{} READ {:?}", self.name, Mode::from_addr(self.config.cmd_addr_bit, addr));
-        self.finish_cmd();
-        0
+        let mode = Mode::from_addr(self.config.cmd_addr_bit, addr);
+
+        let v = match mode {
+            Mode::Cmd => {
+                0
+            }
+            Mode::Data => {
+                self.reply.pop_front().unwrap_or_default()
+            }
+        };
+
+        debug!("{} READ {:?} -> {:02x}", self.name, mode, v);
+        v as u32
     }
 
     fn write(&mut self, _sys: &System, addr: u32, value: u32) {

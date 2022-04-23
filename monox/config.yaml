@@ -17,6 +17,12 @@ regions:
     start: 0x20000000
     size: 0x20000
 devices:
+  sw_spi:
+    - name: LCD_SPI
+      cs: PA15
+      clk: PC7
+      miso: PC6
+      mosi: PG3
   spi_flash:
     - peripheral: SPI2
       jedec_id: 0xef4016

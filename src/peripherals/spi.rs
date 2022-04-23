@@ -11,6 +11,7 @@ use std::{rc::Rc, cell::RefCell};
 pub struct Spi {
     pub name: String,
     pub cr1: u32,
+    pub rx_buffer: u32,
     pub ext_device: Option<Rc<RefCell<dyn ExtDevice<(), u8>>>>,
 }
 
@@ -46,7 +47,8 @@ impl Peripheral for Spi {
             }
             0x000C => {
                 // DR register
-                let v = self.ext_device.as_ref().map(|d| d.borrow_mut()).map(|mut d| {
+                let v = self.rx_buffer;
+                self.rx_buffer = self.ext_device.as_ref().map(|d| d.borrow_mut()).map(|mut d| {
                     if self.is_16bits() {
                         let h = d.read(sys, ()) as u32;
                         let l = d.read(sys, ()) as u32;

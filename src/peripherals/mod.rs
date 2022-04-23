@@ -146,8 +146,10 @@ impl Peripherals {
 
     fn bitbanding(addr: u32) -> Option<(u32, u8)> {
         if (0x4200_0000..0x4400_0000).contains(&addr) {
+            //let old_addr = addr;
             let bit_number = (addr % 32) / 4;
             let addr = 0x4000_0000 + (addr - 0x4200_0000)/32;
+            //trace!("bitbanding: 0x{:08x} -> addr=0x{:08x} bit={}", old_addr, addr, bit_number);
             return Some((addr, bit_number as u8));
         } else {
             None

@@ -39,6 +39,7 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
     let vector_table_addr = config.cpu.vector_table;
 
     let sys = crate::system::prepare(&mut uc, config, svd_device)?;
+
     let display = sys.d.displays.first().map(|d| d.clone());
 
     // Important to keep. Otherwise pc is not accurate due to prefetching and all.
@@ -52,6 +53,7 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
             }
             LAST_INSTRUCTION = (addr as u32, size as u8);
         }
+
         NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
         if trace_instructions {
             trace!("step");
