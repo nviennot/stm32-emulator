@@ -34,7 +34,7 @@ impl Spi {
 }
 
 impl Peripheral for Spi {
-    fn read(&mut self, sys: &System, offset: u32) -> u32 {
+    fn read(&mut self, _sys: &System, offset: u32) -> u32 {
         match offset {
             0x0000 => {
                 self.cr1
@@ -48,16 +48,6 @@ impl Peripheral for Spi {
             0x000C => {
                 // DR register
                 let v = self.rx_buffer;
-                self.rx_buffer = self.ext_device.as_ref().map(|d| d.borrow_mut()).map(|mut d| {
-                    if self.is_16bits() {
-                        let h = d.read(sys, ()) as u32;
-                        let l = d.read(sys, ()) as u32;
-                        (h << 8) | l
-                    } else {
-                        d.read(sys, ()) as u32
-                    }
-                }).unwrap_or(0);
-
                 if self.is_16bits() {
                     trace!("{} read={:04x?}", self.name, v as u16);
                 } else {
@@ -78,6 +68,17 @@ impl Peripheral for Spi {
             }
             0x000C => {
                 // DR register
+
+                self.rx_buffer = self.ext_device.as_ref().map(|d| d.borrow_mut()).map(|mut d| {
+                    if self.is_16bits() {
+                        let h = d.read(sys, ()) as u32;
+                        let l = d.read(sys, ()) as u32;
+                        (h << 8) | l
+                    } else {
+                        d.read(sys, ()) as u32
+                    }
+                }).unwrap_or(0);
+
                 if self.is_16bits() {
                     self.ext_device.as_ref().map(|d| d.borrow_mut()).map(|mut d| {
                         d.write(sys, (), (value >> 8) as u8);
