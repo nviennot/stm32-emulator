@@ -26,8 +26,8 @@ devices:
     - peripheral: USART1
   display:
     - peripheral: FSMC.BANK1
-      width: 320
-      height: 240
+      width: 480
+      height: 320
       cmd_addr_bit: 0x2000
       replies:
         - cmd: 0xd3 # id4

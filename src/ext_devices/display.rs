@@ -117,12 +117,13 @@ impl Display {
                     self.draw_region.bottom = bottom;
                     debug!("{} cmd={:?} top={} bottom={}", self.name, cmd, top, bottom);
                 }
-                (Some(Command::Draw), 0) => {
+                (Some(cmd @ Command::Draw), 0) => {
                     self.drawing = true;
                     self.current_position = Point {
                         x: self.draw_region.left,
                         y: self.draw_region.top,
-                    }
+                    };
+                    debug!("{} cmd={:?}", self.name, cmd);
                 }
                 _ => {
                     // If we need to reply to a read, put it there.
