@@ -97,7 +97,6 @@ impl Display {
         }
 
         self.current_position = Point { x, y };
-
     }
 
     fn handle_cmd(&mut self) {
@@ -168,7 +167,7 @@ impl ExtDevice<u32, u32> for Display {
             }
         };
 
-        debug!("{} READ {:?} -> {:02x}", self.name, mode, v);
+        trace!("{} READ {:?} -> {:02x}", self.name, mode, v);
         v as u32
     }
 

@@ -54,7 +54,7 @@ pub struct Args {
 
     /// Run pending interrupts every N instructions
     /// Shorter is more correct, but is slower.
-    #[clap(short, long, default_value="100")]
+    #[clap(short, long, default_value="10000")]
     interrupt_period: u32,
 }
 
@@ -99,7 +99,7 @@ fn init_logging(args: &Args) {
         .format(|buf, record| {
             use env_logger::fmt::Color;
             let num_instructions = emulator::NUM_INSTRUCTIONS.load(Relaxed);
-            let delta_instructions = num_instructions - unsafe { LAST_NUM_INSTRUCTIONS };
+            //let delta_instructions = num_instructions - unsafe { LAST_NUM_INSTRUCTIONS };
             unsafe { LAST_NUM_INSTRUCTIONS = num_instructions };
             let pc = unsafe { emulator::LAST_INSTRUCTION.0 };
 
@@ -114,7 +114,8 @@ fn init_logging(args: &Args) {
 
             let mut style = buf.style();
             style.set_color(Color::Black).set_intense(true);
-            let header = format!("[tsc={:08} dtsc=+{:08} pc=0x{:08x}]", num_instructions, delta_instructions, pc);
+            //let header = format!("[tsc={:08} dtsc=+{:08} pc=0x{:08x}]", num_instructions, delta_instructions, pc);
+            let header = format!("[clk={:08} pc=0x{:08x}]", num_instructions, pc);
             let header = style.value(header);
 
             writeln!(buf, "{} {} {}", header, level, record.args())
