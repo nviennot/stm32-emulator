@@ -53,9 +53,9 @@ pub struct Args {
     color: Color,
 
     /// Run pending interrupts every N instructions
-    /// When N is very small, slowdown may occur.
+    /// Shorter is more correct, but is slower.
     #[clap(short, long, default_value="100")]
-    interrupt_freq: u32,
+    interrupt_period: u32,
 }
 
 #[derive(clap::ArgEnum, Clone, Copy, Debug)]

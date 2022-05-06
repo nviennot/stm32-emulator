@@ -8,6 +8,7 @@ pub mod gpio;
 pub mod dma;
 pub mod fsmc;
 pub mod i2c;
+pub mod nvic;
 
 use rcc::*;
 use spi::*;
@@ -17,8 +18,9 @@ use gpio::*;
 use dma::*;
 use fsmc::*;
 use i2c::*;
+use nvic::*;
 
-use std::{collections::{BTreeMap, VecDeque, HashMap}, cell::RefCell};
+use std::{collections::{BTreeMap, VecDeque, HashMap}, cell::RefCell, rc::Rc};
 use svd_parser::svd::{RegisterInfo, Device as SvdDevice};
 
 use crate::{system::System, ext_devices::ExtDevices};
@@ -27,6 +29,7 @@ use crate::{system::System, ext_devices::ExtDevices};
 pub struct Peripherals {
     debug_peripherals: Vec<PeripheralSlot<GenericPeripheral>>,
     peripherals: Vec<PeripheralSlot<RefCell<Box<dyn Peripheral>>>>,
+    pub nvic: Rc<RefCell<Nvic>>,
 }
 
 pub struct PeripheralSlot<T> {
@@ -67,6 +70,7 @@ impl Peripherals {
             .or_else(||     I2c::new(&name))
             .or_else(||     Dma::new(&name))
             .or_else(||     Spi::new(&name, ext_devices))
+            .or_else(|| NvicWrapper::new(&name, &self.nvic))
         ;
 
         if let Some(p) = p {
@@ -157,8 +161,9 @@ impl Peripherals {
     }
 
     fn is_register(addr: u32) -> bool {
-        // That's the FSMC banks
-        !(0x6000_0000..0xA000_0000).contains(&addr)
+        // this is avoiding the FSMC banks, essentially
+        !
+        (0x6000_0000..0xA000_0000).contains(&addr)
     }
 
     fn align_addr_4(addr: u32) -> (u32, u8) {

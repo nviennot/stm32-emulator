@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::{mem::MaybeUninit, sync::atomic::{AtomicU64, Ordering, AtomicBool}};
+use std::{mem::MaybeUninit, sync::atomic::{AtomicU64, Ordering, AtomicBool}, cell::RefCell};
 use svd_parser::svd::Device as SvdDevice;
 use unicorn_engine::{unicorn_const::{Arch, Mode, HookType, MemType}, Unicorn, RegisterARM};
-use crate::{config::Config, util::UniErr, Args};
-use anyhow::{Context as _, Result};
+use crate::{config::Config, util::UniErr, Args, system::System};
+use anyhow::{Context as _, Result, bail};
 
 #[repr(C)]
 struct VectorTable {
@@ -31,6 +31,7 @@ fn thumb(pc: u64) -> u64 {
 pub static mut LAST_INSTRUCTION: (u32, u8) = (0,0);
 pub static NUM_INSTRUCTIONS: AtomicU64 = AtomicU64::new(0);
 static CONTINUE_EXECUTION: AtomicBool = AtomicBool::new(false);
+static STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result<()> {
     let mut uc = Unicorn::new(Arch::ARM, Mode::MCLASS | Mode::LITTLE_ENDIAN)
@@ -46,25 +47,71 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
     {
         let trace_instructions = crate::verbose() >= 4;
         let busy_loop_stop = args.busy_loop_stop;
-        uc.add_code_hook(0, u64::MAX, move |uc, addr, size| {
+        let p = sys.p.clone();
+        let d = sys.d.clone();
+        let interrupt_period = args.interrupt_period;
+        sys.uc.borrow_mut().add_code_hook(0, u64::MAX, move |uc, addr, size| {
             unsafe {
                 if busy_loop_stop && LAST_INSTRUCTION.0 == addr as u32 {
                     info!("Busy loop reached");
                     uc.emu_stop().unwrap();
+                    STOP_REQUESTED.store(true, Ordering::Release);
                 }
                 LAST_INSTRUCTION = (addr as u32, size as u8);
             }
 
-            NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
+            let n = NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
             if trace_instructions {
                 trace!("step");
+            }
+
+            if n % interrupt_period as u64 == 0 {
+                let sys = System { uc: RefCell::new(uc), p: p.clone(), d: d.clone() };
+                p.nvic.borrow_mut().run_pending_interrupts(&sys, vector_table_addr);
             }
         }).expect("add_code_hook failed");
     }
 
-    uc.add_intr_hook(|_uc, inton| {
-        error!("intr_hook intno={:08x}", inton);
-    }).expect("add_intr_hook failed");
+    {
+        let p = sys.p.clone();
+        let d = sys.d.clone();
+        sys.uc.borrow_mut().add_intr_hook(move |uc, exception| {
+            match exception {
+                /*
+                    EXCP_UDEF            1   /* undefined instruction */
+                    EXCP_SWI             2   /* software interrupt */
+                    EXCP_PREFETCH_ABORT  3
+                    EXCP_DATA_ABORT      4
+                    EXCP_IRQ             5
+                    EXCP_FIQ             6
+                    EXCP_BKPT            7
+                    EXCP_EXCEPTION_EXIT  8   /* Return from v7M exception.  */
+                    EXCP_KERNEL_TRAP     9   /* Jumped to kernel code page.  */
+                    EXCP_HVC            11   /* HyperVisor Call */
+                    EXCP_HYP_TRAP       12
+                    EXCP_SMC            13   /* Secure Monitor Call */
+                    EXCP_VIRQ           14
+                    EXCP_VFIQ           15
+                    EXCP_SEMIHOST       16   /* semihosting call */
+                    EXCP_NOCP           17   /* v7M NOCP UsageFault */
+                    EXCP_INVSTATE       18   /* v7M INVSTATE UsageFault */
+                    EXCP_STKOF          19   /* v8M STKOF UsageFault */
+                    EXCP_LAZYFP         20   /* v7M fault during lazy FP stacking */
+                    EXCP_LSERR          21   /* v8M LSERR SecureFault */
+                    EXCP_UNALIGNED      22   /* v7M UNALIGNED UsageFault */
+                    */
+                8 => {
+                    // Return from interrupt
+                    let sys = System { uc: RefCell::new(uc), p: p.clone(), d: d.clone() };
+                    p.nvic.borrow_mut().return_from_interrupt(&sys);
+                }
+                _ => {
+                    error!("intr_hook intno={:08x}", exception);
+                    std::process::exit(1);
+                }
+            }
+        }).expect("add_intr_hook failed");
+    }
 
     uc.add_mem_hook(HookType::MEM_UNMAPPED, 0, u64::MAX, |uc, type_, addr, size, value| {
         if type_ == MemType::WRITE_UNMAPPED {
@@ -93,6 +140,7 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
 
     loop {
         let max_instructions = args.max_instructions.map(|c|
+            // yes, we want to panic if this goes negative.
             c - NUM_INSTRUCTIONS.load(Ordering::Relaxed)
         );
         if max_instructions == Some(0) {
@@ -108,17 +156,23 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
         ).map_err(UniErr);
         pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
 
-        if CONTINUE_EXECUTION.swap(false, Ordering::AcqRel) {
-            if crate::verbose() >= 3 {
-                trace!("Resuming execution pc={:08x}", pc);
+        if let Err(e) = result {
+            if CONTINUE_EXECUTION.swap(false, Ordering::AcqRel) {
+                // This was a bad memory access, we keep going.
+                if crate::verbose() >= 3 {
+                    trace!("Resuming execution pc={:08x}", pc);
+                }
+                pc = thumb(pc);
+                continue;
+            } else {
+                bail!(e);
             }
-            pc = thumb(pc);
-            continue;
         }
 
-        info!("Emulation stop");
-        result?;
-        break;
+        if STOP_REQUESTED.load(Ordering::Relaxed) {
+            info!("Emulation stop");
+            break;
+        }
     }
 
     if let Some(display) = display {
