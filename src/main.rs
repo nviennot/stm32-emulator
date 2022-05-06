@@ -51,6 +51,11 @@ pub struct Args {
     /// Colorize output
     #[clap(short, long, arg_enum, default_value="auto")]
     color: Color,
+
+    /// Run pending interrupts every N instructions
+    /// When N is very small, slowdown may occur.
+    #[clap(short, long, default_value="100")]
+    interrupt_freq: u32,
 }
 
 #[derive(clap::ArgEnum, Clone, Copy, Debug)]

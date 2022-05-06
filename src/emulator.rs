@@ -39,26 +39,28 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
     let vector_table_addr = config.cpu.vector_table;
 
     let sys = crate::system::prepare(&mut uc, config, svd_device)?;
-
     let display = sys.d.displays.first().map(|d| d.clone());
 
-    // Important to keep. Otherwise pc is not accurate due to prefetching and all.
-    let trace_instructions = crate::verbose() >= 4;
-    let busy_loop_stop = args.busy_loop_stop;
-    uc.add_code_hook(0, u64::MAX, move |uc, addr, size| {
-        unsafe {
-            if busy_loop_stop && LAST_INSTRUCTION.0 == addr as u32 {
-                info!("Busy loop reached");
-                uc.emu_stop().unwrap();
+    // We hook on each instructions, but we could skip this.
+    // The slowdown is less than 50%. It's okay for now.
+    {
+        let trace_instructions = crate::verbose() >= 4;
+        let busy_loop_stop = args.busy_loop_stop;
+        uc.add_code_hook(0, u64::MAX, move |uc, addr, size| {
+            unsafe {
+                if busy_loop_stop && LAST_INSTRUCTION.0 == addr as u32 {
+                    info!("Busy loop reached");
+                    uc.emu_stop().unwrap();
+                }
+                LAST_INSTRUCTION = (addr as u32, size as u8);
             }
-            LAST_INSTRUCTION = (addr as u32, size as u8);
-        }
 
-        NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
-        if trace_instructions {
-            trace!("step");
-        }
-    }).expect("add_code_hook failed");
+            NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
+            if trace_instructions {
+                trace!("step");
+            }
+        }).expect("add_code_hook failed");
+    }
 
     uc.add_intr_hook(|_uc, inton| {
         error!("intr_hook intno={:08x}", inton);
@@ -122,7 +124,6 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
     if let Some(display) = display {
         display.borrow().write_framebuffer_to_file("framebuffer.bin")?;
     }
-
 
     Ok(())
 }

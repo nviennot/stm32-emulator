@@ -6,39 +6,51 @@ use crate::{peripherals::Peripherals, ext_devices::ExtDevices, util::{UniErr, ro
 use anyhow::{Context as _, Result};
 use svd_parser::svd::Device as SvdDevice;
 
-// System is passed around during read/write hooks
+// System is passed around during read/write hooks. It's more convenient than passing each thing individually.
+// Maybe it should just be a global variable, and we call it a day.
 pub struct System<'a, 'b> {
     // not sure how to not have a refcell here
     pub uc: RefCell<&'a mut Unicorn<'b, ()>>,
+    // Sorry for the single letter variables, it just gets too verbose at times.
     pub p: Rc<Peripherals>,
     pub d: Rc<ExtDevices>,
 }
 
-fn bind(uc: &mut Unicorn<()>, peripherals: &Rc<Peripherals>, ext_devices: &Rc<ExtDevices>) -> Result<()> {
-    for (start, end) in Peripherals::MEMORY_MAPS {
-        let read_cb = {
-            let peripherals = peripherals.clone();
-            let ext_devices = ext_devices.clone();
-            move |uc: &mut Unicorn<'_, ()>, addr, size| {
-                let mut sys = System { uc: RefCell::new(uc), p: peripherals.clone(), d: ext_devices.clone() };
-                peripherals.read(&mut sys, start + addr as u32, size as u8) as u64
-            }
-        };
-
-        let write_cb = {
-            let peripherals = peripherals.clone();
-            let ext_devices = ext_devices.clone();
-            move |uc: &mut Unicorn<'_, ()>, addr, size, value| {
-                let mut sys = System { uc: RefCell::new(uc), p: peripherals.clone(), d: ext_devices.clone() };
-                peripherals.write(&mut sys, start + addr as u32, size as u8, value as u32)
-            }
-        };
-
-        uc.mmio_map(start as u64, (end-start) as usize, Some(read_cb), Some(write_cb))
-            .map_err(UniErr).context("Failed to mmio_map()")?;
+impl<'a, 'b> System<'a, 'b> {
+    fn new(uc: &'a mut Unicorn<'b, ()>, p: Peripherals,  d: ExtDevices) -> Self {
+        Self {
+            uc: RefCell::new(uc),
+            p: Rc::new(p),
+            d: Rc::new(d),
+        }
     }
 
-    Ok(())
+    fn bind_peripherals_to_unicorn(&mut self) -> Result<()> {
+        for (start, end) in Peripherals::MEMORY_MAPS {
+            let read_cb = {
+                let p = self.p.clone();
+                let d = self.d.clone();
+                move |uc: &mut Unicorn<'_, ()>, addr, size| {
+                    let mut sys = System { uc: RefCell::new(uc), p: p.clone(), d: d.clone() };
+                    p.read(&mut sys, start + addr as u32, size as u8) as u64
+                }
+            };
+
+            let write_cb = {
+                let p = self.p.clone();
+                let d = self.d.clone();
+                move |uc: &mut Unicorn<'_, ()>, addr, size, value| {
+                    let mut sys = System { uc: RefCell::new(uc), p: p.clone(), d: d.clone() };
+                    p.write(&mut sys, start + addr as u32, size as u8, value as u32)
+                }
+            };
+
+            self.uc.borrow_mut().mmio_map(start as u64, (end-start) as usize, Some(read_cb), Some(write_cb))
+                .map_err(UniErr).context("Failed to mmio_map()")?;
+        }
+
+        Ok(())
+    }
 }
 
 fn load_memory_regions(uc: &mut Unicorn<()>, config: &Config) -> Result<()> {
@@ -46,7 +58,7 @@ fn load_memory_regions(uc: &mut Unicorn<()>, config: &Config) -> Result<()> {
         debug!("Mapping region start=0x{:08x} len=0x{:x} name={}",
             region.start, region.size, region.name);
 
-        let size = round_up(region.size as usize, 4096);
+        let size = round_up(region.size as usize, 4096); // magic number is from mem_map() documentation
         uc.mem_map(region.start.into(), size, Permission::ALL)
             .map_err(UniErr).with_context(||
                 format!("Memory mapping of peripheral={} failed", region.name))?;
@@ -71,12 +83,10 @@ fn load_memory_regions(uc: &mut Unicorn<()>, config: &Config) -> Result<()> {
 pub fn prepare<'a, 'b>(uc: &'a mut Unicorn<'b, ()>, config: Config, svd_device: SvdDevice) -> Result<System<'a, 'b>> {
     load_memory_regions(uc, &config)?;
 
-    let ext_devices = Rc::new(config.devices.unwrap_or(Default::default()).try_into()?);
-    let peripherals = Rc::new(Peripherals::from_svd(svd_device, &ext_devices));
+    let ext_devices = config.devices.unwrap_or(Default::default()).try_into()?;
+    let peripherals = Peripherals::from_svd(svd_device, &ext_devices);
 
-    bind(uc, &peripherals, &ext_devices)?;
-
-    Ok(System {
-        uc: RefCell::new(uc), p: peripherals, d: ext_devices,
-    })
+    let mut system = System::new(uc, peripherals, ext_devices);
+    system.bind_peripherals_to_unicorn()?;
+    Ok(system)
 }
