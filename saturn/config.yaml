@@ -47,3 +47,6 @@ patches:
   # Nop the fpga not being there
   - start: 0x08041F92
     data: [0x00, 0xbf]
+  # Nop the fpga not responding
+  - start: 0x080420D0
+    data: [0x00, 0xbf]

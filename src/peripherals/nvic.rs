@@ -15,11 +15,17 @@ pub struct Nvic {
     // 128 different interrupts. Good enough for now
     // pending: u128,
     in_interrupt: bool,
+    pub intr_index: usize,
 }
 
 pub mod irq {
-    pub const SYSTICK: i32 = -1;
+    //pub const SYSTICK: i32 = -1;
+    pub const SYSTICK: i32 = 37;
+    // tiemrs: 25 28 29
+    // usart1: 37
 }
+
+const INTERRUPTS: [i32; 6] = [-1, 37, 25, 28, 29, 37];
 
 impl Nvic {
     pub fn run_pending_interrupts(&mut self, sys: &System, vector_table_addr: u32) {
@@ -33,7 +39,10 @@ impl Nvic {
             let n = crate::emulator::NUM_INSTRUCTIONS.load(Ordering::Relaxed);
             if n + systick_period as u64 > self.last_systick_trigger {
                 self.last_systick_trigger = n;
-                self.run_interrupt(sys, vector_table_addr, irq::SYSTICK);
+                //self.run_interrupt(sys, vector_table_addr, irq::SYSTICK);
+
+                self.run_interrupt(sys, vector_table_addr, INTERRUPTS[self.intr_index]);
+                self.intr_index = (self.intr_index + 1) % INTERRUPTS.len();
             }
         }
     }

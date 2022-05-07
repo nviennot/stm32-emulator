@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::Result;
+use nix::fcntl::OFlag;
 use serde::Deserialize;
 
 use crate::system::System;
@@ -25,14 +26,20 @@ impl UsartProbe {
     }
 }
 
+use std::io::prelude::*;
+
 impl ExtDevice<(), u8> for UsartProbe {
     fn connect_peripheral(&mut self, peri_name: &str) -> String {
+        nix::fcntl::fcntl(0, nix::fcntl::FcntlArg::F_SETFL(OFlag::O_NONBLOCK)).unwrap();
         self.name = format!("{} usart-probe", peri_name);
         self.name.clone()
     }
 
     fn read(&mut self, _sys: &System, _addr: ()) -> u8 {
-        0
+        let mut v = [0];
+        // stdin read may fail, it's non blocking. This is good enough.
+        let _ = std::io::stdin().read(&mut v);
+        v[0]
     }
 
     fn write(&mut self, _sys: &System, _addr: (), v: u8) {

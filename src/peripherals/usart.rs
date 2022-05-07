@@ -30,6 +30,14 @@ impl Usart {
 impl Peripheral for Usart {
     fn read(&mut self, sys: &System, offset: u32) -> u32 {
         match offset {
+            0x0000 => {
+                // Bit 7 TXE: Transmit data register empty
+                // Bit 6 TC: Transmission complete
+                // Bit 5 RXNE: Read data register not empty
+                // Bit 4 IDLE: IDLE line detected
+                // We could do something smarter to indicate that there's data to read
+                (1 << 7) | (1 << 6) | (1 << 5) | (1 << 4)
+            }
             0x0004 => {
                 // DR register
                 let v = self.ext_device.as_ref().map(|d|
