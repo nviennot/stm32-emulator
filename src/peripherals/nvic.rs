@@ -2,7 +2,7 @@
 
 use std::{rc::Rc, cell::RefCell, sync::atomic::Ordering};
 
-use unicorn_engine::RegisterARM;
+use unicorn_engine::{RegisterARM, Unicorn};
 
 use crate::system::System;
 use super::Peripheral;
@@ -84,29 +84,71 @@ impl Nvic {
         u32::from_le_bytes(vector)
     }
 
+    // SPSEL, bit[1], 0 means we use MSP, 1 means we use PSP.
+    // FPCA, bit[2], if the processor includes the FP extension.
+
     fn run_interrupt(&mut self, sys: &System, vector_table_addr: u32, irq: i32) {
         let vector = Self::read_vector_addr(sys, vector_table_addr, irq);
 
-        trace!("Running interrupt n={}, vector={:#08x}", irq, vector);
-        Self::push_regs(sys);
-
         let mut uc = sys.uc.borrow_mut();
+
+        // SPSEL, bit[1], 0 means we use MSP, 1 means we use PSP.
+        // FPCA, bit[2], if the processor includes the FP extension.
+        let control_reg = uc.reg_read(RegisterARM::CONTROL).unwrap();
+        let spsel = control_reg & (1 << 1) != 0;
+        let fpca = control_reg & (2 << 1) != 0;
+
+        trace!("Running interrupt irq={} spsel={} fpca={} vector={:#08x}",
+            irq, spsel, fpca, vector);
+
+        Self::push_regs(&mut uc, spsel, fpca);
+
+        // LR meaning:
+        //   EXC_RETURN    Return to      Return stack Frame type
+        //   0xFFFF_FFE1   Handler mode   Main         Extended
+        //   0xFFFF_FFE9   Thread mode    Main         Extended
+        //   0xFFFF_FFED   Thread mode    Process      Extended
+        //   0xFFFF_FFF1   Handler mode   Main         Basic
+        //   0xFFFF_FFF9   Thread mode    Main         Basic
+        //   0xFFFF_FFFD   Thread mode    Process      Basic
+
+        // Right now, we don't supposed nested interrupts.
+        let mut lr: u32 = 0xFFFF_FFE9;
+        if spsel { lr |= 0b0000_0100; }
+        if !fpca { lr |= 0b0001_0000; } // Yes, no fpca means the bit is set
+        uc.reg_write(RegisterARM::LR, lr.into()).unwrap();
 
         uc.reg_write(RegisterARM::IPSR, irq as u64).unwrap();
         uc.reg_write(RegisterARM::PC, vector as u64).unwrap();
-        // This value means return from interrupt.
-        uc.reg_write(RegisterARM::LR, 0xFFFF_FFFD).unwrap();
 
         self.in_interrupt = true;
     }
 
     pub fn return_from_interrupt(&mut self, sys: &System) {
-        trace!("Return from interrupt");
-        Self::pop_regs(sys);
+        let mut uc = sys.uc.borrow_mut();
+
+        let lr = uc.reg_read(RegisterARM::LR).unwrap();
+        assert!(lr & 0xFFFF_FF00 == 0xFFFF_FF00);
+
+        let spsel = lr & 0b0000_0100 != 0;
+        let fpca = lr & 0b0001_0000 == 0; // 0 means yes here
+
+        Self::pop_regs(&mut uc, spsel, fpca);
+
+        trace!("Return from interrupt spsel={} fpca={} pc=0x{:08x}",
+            spsel, fpca, uc.reg_read(RegisterARM::PC).unwrap());
+
+        // SPSEL, bit[1], 0 means we use MSP, 1 means we use PSP.
+        // FPCA, bit[2], if the processor includes the FP extension.
+        let mut control_reg = 0;
+        if spsel { control_reg |= 1 << 1; }
+        if fpca { control_reg |= 2 << 1; }
+        uc.reg_write(RegisterARM::CONTROL, control_reg).unwrap();
+
         self.in_interrupt = false;
     }
 
-    const CONTEXT_REGS: [RegisterARM; 25] = [
+    const CONTEXT_REGS_EXTENDED: [RegisterARM; 17] = [
         RegisterARM::FPSCR,
         RegisterARM::S15,
         RegisterARM::S14,
@@ -124,6 +166,9 @@ impl Nvic {
         RegisterARM::S2,
         RegisterARM::S1,
         RegisterARM::S0,
+    ];
+
+    const CONTEXT_REGS: [RegisterARM; 8] = [
         RegisterARM::XPSR,
         RegisterARM::PC,
         RegisterARM::LR,
@@ -134,26 +179,48 @@ impl Nvic {
         RegisterARM::R0,
     ];
 
-    fn push_regs(sys: &System) {
-        let mut uc = sys.uc.borrow_mut();
-        let mut sp = uc.reg_read(RegisterARM::SP).unwrap();
-        for reg in Self::CONTEXT_REGS {
+    fn push_regs(uc: &mut Unicorn<()>, spsel: bool, fpca: bool) {
+        let sp_reg = if spsel { RegisterARM::PSP } else { RegisterARM::MSP };
+        let mut sp = uc.reg_read(sp_reg).unwrap();
+
+        let mut push_reg = |reg| {
             let v = uc.reg_read(reg).unwrap() as u32;
+            //trace!("push sp=0x{:08x} {:5?}=0x{:08x}", sp, reg, v);
             sp -= 4;
             uc.mem_write(sp, &v.to_le_bytes()).expect("Invalid SP pointer during interrupt");
+        };
+
+        if fpca {
+            for reg in Self::CONTEXT_REGS_EXTENDED {
+                push_reg(reg);
+            }
+        }
+        for reg in Self::CONTEXT_REGS {
+            push_reg(reg);
         }
         uc.reg_write(RegisterARM::SP, sp).unwrap();
     }
 
-    fn pop_regs(sys: &System) {
-        let mut uc = sys.uc.borrow_mut();
-        let mut sp = uc.reg_read(RegisterARM::SP).unwrap();
-        for reg in Self::CONTEXT_REGS.iter().rev() {
+    fn pop_regs(uc: &mut Unicorn<()>, spsel: bool, fpca: bool) {
+        let sp_reg = if spsel { RegisterARM::PSP } else { RegisterARM::MSP };
+        let mut sp = uc.reg_read(sp_reg).unwrap();
+
+        let mut pop_reg = |reg| {
             let mut v = [0,0,0,0];
             uc.mem_read(sp, &mut v).expect("Invalid SP pointer during interrupt return");
             let v = u32::from_le_bytes(v);
+            //trace!("pop sp=0x{:08x} {:5?}=0x{:08x}", sp, reg, v);
             sp += 4;
-            uc.reg_write(*reg, v as u64).unwrap();
+            uc.reg_write(reg, v as u64).unwrap();
+        };
+
+        for reg in Self::CONTEXT_REGS.iter().rev() {
+            pop_reg(*reg);
+        }
+        if fpca {
+            for reg in Self::CONTEXT_REGS_EXTENDED.iter().rev() {
+                pop_reg(*reg);
+            }
         }
         uc.reg_write(RegisterARM::SP, sp).unwrap();
     }

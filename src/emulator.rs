@@ -156,11 +156,12 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
     }).expect("add_mem_hook failed");
 
     let vector_table = VectorTable::from_memory(&uc, vector_table_addr)?;
+    let mut pc = vector_table.reset as u64;
     uc.reg_write(RegisterARM::SP, vector_table.sp.into()).map_err(UniErr)?;
+    //uc.reg_write(RegisterARM::LR, 0xFFFF_FFFF).map_err(UniErr)?;
 
     info!("Starting emulation");
 
-    let mut pc = vector_table.reset as u64;
 
     loop {
         let max_instructions = args.max_instructions.map(|c|
