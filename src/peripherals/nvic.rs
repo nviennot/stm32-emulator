@@ -60,7 +60,7 @@ impl Nvic {
 
    fn are_interrupts_disabled(sys: &System) -> bool {
         let primask = sys.uc.borrow().reg_read(RegisterARM::PRIMASK).unwrap();
-        return primask != 0;
+        primask != 0
     }
 
     pub fn run_pending_interrupts(&mut self, sys: &System, vector_table_addr: u32) {
@@ -234,50 +234,4 @@ impl Peripheral for NvicWrapper {
 0xE000E444 B  REGISTER IPR17 (rw): Interrupt Priority Register
 0xE000E448 B  REGISTER IPR18 (rw): Interrupt Priority Register
 0xE000E44C B  REGISTER IPR19 (rw): Interrupt Priority Register
-*/
-
-
-
-/*
-// SPDX-License-Identifier: GPL-3.0-or-later
-
-use unicorn_engine::{Unicorn, RegisterARM};
-
-#[derive(Default)]
-struct Interrupts {
-    // 128 different interrupts. Good enough for now
-    pending: u128,
-    in_interrupt: bool,
-    vector_table_addr: u32,
-}
-
-impl Interrupts {
-    pub fn new(vector_table_addr: u32) -> Self {
-        Self { vector_table_addr, ..Default::default() }
-    }
-
-    pub fn invoke_pending(&mut self, uc: &mut Unicorn<()>) {
-        if self.pending == 0 {
-            return;
-        }
-
-        // Interrupt disabled?
-        let primask = uc.reg_read(RegisterARM::PRIMASK).unwrap();
-        if primask != 0 {
-            return;
-        }
-
-        let intr = self.pending.trailing_zeros();
-        let mut intr_addr = [0,0,0,0];
-        uc.mem_read((self.vector_table_addr + intr * 4).into(), &mut intr_addr)
-            .expect("Failed to read vector table");
-
-        RegisterARM::S
-        //let intr_addr = u32::from_le_bytes(intr_addr);
-
-        //uc.reg_read(RegisterARM::
-
-
-    }
-}
 */

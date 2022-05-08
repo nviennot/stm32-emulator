@@ -23,5 +23,7 @@ lazy_static = "1.4"
 termcolor = "1.1"
 num_enum = "0.5"
 
+capstone = "0.11"
+
 [patch.crates-io]
 unicorn-engine = { path = "unicorn" }

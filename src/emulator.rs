@@ -5,6 +5,7 @@ use svd_parser::svd::Device as SvdDevice;
 use unicorn_engine::{unicorn_const::{Arch, Mode, HookType, MemType}, Unicorn, RegisterARM};
 use crate::{config::Config, util::UniErr, Args, system::System};
 use anyhow::{Context as _, Result, bail};
+use capstone::prelude::*;
 
 #[repr(C)]
 struct VectorTable {
@@ -33,6 +34,21 @@ pub static NUM_INSTRUCTIONS: AtomicU64 = AtomicU64::new(0);
 static CONTINUE_EXECUTION: AtomicBool = AtomicBool::new(false);
 static BUSY_LOOP_REACHED: AtomicBool = AtomicBool::new(false);
 
+fn disassemble_instruction(diassembler: &Capstone, uc: &Unicorn<()>, pc: u64) -> String {
+    let mut instr = [0; 4];
+    if uc.mem_read(pc, &mut instr).is_err() {
+        return "failed to read memory at pc".to_string();
+    }
+
+    if let Ok(disasm) = diassembler.disasm_count(&instr, pc, 1) {
+        if let Some(instr) = disasm.first() {
+            return format!("{:5} {}", instr.mnemonic().unwrap(), instr.op_str().unwrap());
+        }
+    }
+
+    return "??".to_string();
+}
+
 pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result<()> {
     let mut uc = Unicorn::new(Arch::ARM, Mode::MCLASS | Mode::LITTLE_ENDIAN)
         .map_err(UniErr).context("Failed to initialize Unicorn instance")?;
@@ -42,6 +58,12 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
     let sys = crate::system::prepare(&mut uc, config, svd_device)?;
     let display = sys.d.displays.first().map(|d| d.clone());
 
+    let diassembler = Capstone::new()
+        .arm()
+        .mode(arch::arm::ArchMode::Thumb)
+        .build()
+        .expect("failed to initialize capstone");
+
     // We hook on each instructions, but we could skip this.
     // The slowdown is less than 50%. It's okay for now.
     {
@@ -50,19 +72,20 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
         let p = sys.p.clone();
         let d = sys.d.clone();
         let interrupt_period = args.interrupt_period;
-        sys.uc.borrow_mut().add_code_hook(0, u64::MAX, move |uc, addr, size| {
+        sys.uc.borrow_mut().add_code_hook(0, u64::MAX, move |uc, pc, size| {
             unsafe {
-                if busy_loop_stop && LAST_INSTRUCTION.0 == addr as u32 {
+                if busy_loop_stop && LAST_INSTRUCTION.0 == pc as u32 {
                     info!("Busy loop reached");
                     uc.emu_stop().unwrap();
                     BUSY_LOOP_REACHED.store(true, Ordering::Release);
                 }
-                LAST_INSTRUCTION = (addr as u32, size as u8);
+                LAST_INSTRUCTION = (pc as u32, size as u8);
             }
 
             let n = NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
+
             if trace_instructions {
-                trace!("step");
+                info!("{}", disassemble_instruction(&diassembler, uc, pc));
             }
 
             if n % interrupt_period as u64 == 0 {
@@ -186,40 +209,3 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
 
     Ok(())
 }
-
-
-    /*
-    uc.add_insn_invalid_hook(|uc| {
-        let pc = uc.reg_read(RegisterARM::PC).unwrap();
-        let mut ins = [0,0,0,0];
-        uc.mem_read(pc, &mut ins).unwrap();
-        match ins {
-            /*
-            [0xef, 0xf3, 0x10, 0x80] => {
-                // mrs r0, primask
-                uc.reg_write(RegisterARM::R0, 0).unwrap();
-                uc.reg_write(RegisterARM::PC, thumb(pc+4)).unwrap();
-                trace!("read primask");
-                true
-            }
-            [0x80, 0xf3, 0x10, 0x88] => {
-                // msr primask,r0
-                trace!("write primask");
-                uc.reg_write(RegisterARM::PC, thumb(pc+4)).unwrap();
-                true
-            }
-            [0x72, 0xb6, _, _] => {
-                // instruction: cpsid
-                trace!("Disabling interrupt");
-                uc.reg_write(RegisterARM::PC, thumb(pc+2)).unwrap();
-                trace!("disabled interrupts, pc is now {:08x}", uc.pc_read().unwrap());
-                true
-            }
-            */
-            _ => {
-                error!("invalid insn: pc=0x{:08x}, ins={:x?}", pc, ins);
-                false
-            }
-        }
-    }).expect("add_insn_invalid_hook failed");
-    */
