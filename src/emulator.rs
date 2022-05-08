@@ -49,6 +49,28 @@ fn disassemble_instruction(diassembler: &Capstone, uc: &Unicorn<()>, pc: u64) ->
     return "??".to_string();
 }
 
+pub fn dump_stack(uc: &mut Unicorn<()>, count: usize) {
+    let mut sp = uc.reg_read(RegisterARM::SP).unwrap();
+
+    for _ in 0..count {
+        let mut v = [0,0,0,0];
+        if uc.mem_read(sp, &mut v).is_err() {
+            info!("stack dump finished due to mem read error");
+            return;
+        }
+        let v = u32::from_le_bytes(v);
+
+        if (0x0800_0000..0x0810_0000).contains(&v) {
+            // Probably a return address
+            info!("*** 0x{:08x} (sp=0x{:08x})", v, sp);
+        } else {
+            info!("    0x{:08x} (sp=0x{:08x})", v, sp);
+        }
+
+        sp += 4;
+    }
+}
+
 pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result<()> {
     let mut uc = Unicorn::new(Arch::ARM, Mode::MCLASS | Mode::LITTLE_ENDIAN)
         .map_err(UniErr).context("Failed to initialize Unicorn instance")?;
@@ -162,14 +184,13 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
 
     info!("Starting emulation");
 
-
     loop {
         let max_instructions = args.max_instructions.map(|c|
             // yes, we want to panic if this goes negative.
             c - NUM_INSTRUCTIONS.load(Ordering::Relaxed)
         );
         if max_instructions == Some(0) {
-            info!("Reached target address. Done");
+            info!("Reached target number of instructions. Done");
             break;
         }
 
@@ -202,6 +223,10 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
         if BUSY_LOOP_REACHED.load(Ordering::Relaxed) {
             break;
         }
+    }
+
+    if let Some(n) = args.dump_stack {
+        dump_stack(&mut uc, n);
     }
 
     if let Some(display) = display {

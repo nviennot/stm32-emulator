@@ -51,7 +51,7 @@ impl Nvic {
         if let Some(systick_period) = self.systick_period {
             let n = crate::emulator::NUM_INSTRUCTIONS.load(Ordering::Relaxed);
             let delta_num_instructions = n - self.last_systick_trigger;
-            if (systick_period as u64) < delta_num_instructions {
+            if delta_num_instructions > (systick_period as u64) {
                 self.last_systick_trigger = n;
                 self.set_intr_pending(irq::SYSTICK);
             }
@@ -128,22 +128,30 @@ impl Nvic {
         let mut uc = sys.uc.borrow_mut();
 
         let lr = uc.reg_read(RegisterARM::LR).unwrap();
-        assert!(lr & 0xFFFF_FF00 == 0xFFFF_FF00);
+        if lr & 0xFFFF_FF00 == 0xFFFF_FF00 {
+            let spsel = lr & 0b0000_0100 != 0;
+            let fpca = lr & 0b0001_0000 == 0; // 0 means yes here
 
-        let spsel = lr & 0b0000_0100 != 0;
-        let fpca = lr & 0b0001_0000 == 0; // 0 means yes here
+            Self::pop_regs(&mut uc, spsel, fpca);
 
-        Self::pop_regs(&mut uc, spsel, fpca);
+            trace!("Return from interrupt spsel={} fpca={} pc=0x{:08x}",
+                spsel, fpca, uc.reg_read(RegisterARM::PC).unwrap());
 
-        trace!("Return from interrupt spsel={} fpca={} pc=0x{:08x}",
-            spsel, fpca, uc.reg_read(RegisterARM::PC).unwrap());
+            // SPSEL, bit[1], 0 means we use MSP, 1 means we use PSP.
+            // FPCA, bit[2], if the processor includes the FP extension.
+            let mut control_reg = 0;
+            if spsel { control_reg |= 1 << 1; }
+            if fpca { control_reg |= 2 << 1; }
+            uc.reg_write(RegisterARM::CONTROL, control_reg).unwrap();
+        } else {
+            let control_reg = uc.reg_read(RegisterARM::CONTROL).unwrap();
+            let spsel = control_reg & (1 << 1) != 0;
+            let fpca = control_reg & (2 << 1) != 0;
+            Self::pop_regs(&mut uc, spsel, fpca);
 
-        // SPSEL, bit[1], 0 means we use MSP, 1 means we use PSP.
-        // FPCA, bit[2], if the processor includes the FP extension.
-        let mut control_reg = 0;
-        if spsel { control_reg |= 1 << 1; }
-        if fpca { control_reg |= 2 << 1; }
-        uc.reg_write(RegisterARM::CONTROL, control_reg).unwrap();
+            trace!("Return from interrupt spsel={} fpca={} pc=0x{:08x} -- LR was not right",
+                spsel, fpca, uc.reg_read(RegisterARM::PC).unwrap());
+        }
 
         self.in_interrupt = false;
     }

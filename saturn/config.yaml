@@ -45,5 +45,5 @@ patches:
   - start: 0x08051ee8
     data: [0x70, 0x47]
   # Nop the fpga not being there
-  #- start: 0x08041F92
-  #  data: [0x00, 0xbf]
+  - start: 0x08041F92
+    data: [0x00, 0xbf]

@@ -54,8 +54,12 @@ pub struct Args {
 
     /// Run pending interrupts every N instructions
     /// Shorter is more correct, but is slower.
-    #[clap(short, long, default_value="10000")]
+    #[clap(short, long, default_value="1")]
     interrupt_period: u32,
+
+    /// Dump stack at the end. Parameter is the number of words to print
+    #[clap(short, long)]
+    dump_stack: Option<usize>,
 }
 
 #[derive(clap::ArgEnum, Clone, Copy, Debug)]

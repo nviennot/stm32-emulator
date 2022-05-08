@@ -54,7 +54,10 @@ impl Peripheral for Gpio {
             0x0004 => self.otype,
             0x0008 => self.ospeed,
             0x000C => self.pupd,
-            0x0010 => self.id,
+            0x0010 => {
+                trace!("GPIO{} read", self.block);
+                self.id
+            }
             0x0014 => self.od,
             0x0018 => 0, // bsr
             0x001C => self.lck,
