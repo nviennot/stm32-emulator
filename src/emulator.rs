@@ -31,7 +31,7 @@ fn thumb(pc: u64) -> u64 {
 pub static mut LAST_INSTRUCTION: (u32, u8) = (0,0);
 pub static NUM_INSTRUCTIONS: AtomicU64 = AtomicU64::new(0);
 static CONTINUE_EXECUTION: AtomicBool = AtomicBool::new(false);
-static STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
+static BUSY_LOOP_REACHED: AtomicBool = AtomicBool::new(false);
 
 pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result<()> {
     let mut uc = Unicorn::new(Arch::ARM, Mode::MCLASS | Mode::LITTLE_ENDIAN)
@@ -55,7 +55,7 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
                 if busy_loop_stop && LAST_INSTRUCTION.0 == addr as u32 {
                     info!("Busy loop reached");
                     uc.emu_stop().unwrap();
-                    STOP_REQUESTED.store(true, Ordering::Release);
+                    BUSY_LOOP_REACHED.store(true, Ordering::Release);
                 }
                 LAST_INSTRUCTION = (addr as u32, size as u8);
             }
@@ -104,6 +104,7 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
                     // Return from interrupt
                     let sys = System { uc: RefCell::new(uc), p: p.clone(), d: d.clone() };
                     p.nvic.borrow_mut().return_from_interrupt(&sys);
+                    p.nvic.borrow_mut().run_pending_interrupts(&sys, vector_table_addr);
                 }
                 _ => {
                     error!("intr_hook intno={:08x}", exception);
@@ -169,8 +170,12 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
             }
         }
 
-        if STOP_REQUESTED.load(Ordering::Relaxed) {
-            info!("Emulation stop");
+        if args.stop_addr == Some(pc as u32) {
+            info!("Stop address reached, stopping");
+            break;
+        }
+
+        if BUSY_LOOP_REACHED.load(Ordering::Relaxed) {
             break;
         }
     }

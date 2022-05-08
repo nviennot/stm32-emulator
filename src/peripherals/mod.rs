@@ -9,6 +9,7 @@ pub mod dma;
 pub mod fsmc;
 pub mod i2c;
 pub mod nvic;
+pub mod scb;
 
 use rcc::*;
 use spi::*;
@@ -19,6 +20,7 @@ use dma::*;
 use fsmc::*;
 use i2c::*;
 use nvic::*;
+use scb::*;
 
 use std::{collections::{BTreeMap, VecDeque, HashMap}, cell::RefCell, rc::Rc};
 use svd_parser::svd::{RegisterInfo, Device as SvdDevice};
@@ -62,15 +64,16 @@ impl Peripherals {
         };
 
         let p = None
-            .or_else(|| SysTick::new(&name))
-            .or_else(||    Gpio::new(&name))
-            .or_else(||   Usart::new(&name, ext_devices))
-            .or_else(||    Fsmc::new(&name, ext_devices))
-            .or_else(||     Rcc::new(&name))
-            .or_else(||     I2c::new(&name))
-            .or_else(||     Dma::new(&name))
-            .or_else(||     Spi::new(&name, ext_devices))
             .or_else(|| NvicWrapper::new(&name, &self.nvic))
+            .or_else(||     SysTick::new(&name))
+            .or_else(||         Scb::new(&name))
+            .or_else(||        Gpio::new(&name))
+            .or_else(||       Usart::new(&name, ext_devices))
+            .or_else(||        Fsmc::new(&name, ext_devices))
+            .or_else(||         Rcc::new(&name))
+            .or_else(||         I2c::new(&name))
+            .or_else(||         Dma::new(&name))
+            .or_else(||         Spi::new(&name, ext_devices))
         ;
 
         if let Some(p) = p {

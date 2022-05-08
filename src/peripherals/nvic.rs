@@ -13,33 +13,71 @@ pub struct Nvic {
     pub last_systick_trigger: u64,
 
     // 128 different interrupts. Good enough for now
-    // pending: u128,
+    pending: u128,
     in_interrupt: bool,
 }
 
+const IRQ_OFFSET: i32 = 16;
+
 pub mod irq {
+    pub const PENDSV: i32 = -2;
     pub const SYSTICK: i32 = -1;
 }
 
-impl Nvic {
-    pub fn run_pending_interrupts(&mut self, sys: &System, vector_table_addr: u32) {
-        // Interrupt disabled?
-        let primask = sys.uc.borrow().reg_read(RegisterARM::PRIMASK).unwrap();
-        if primask != 0 || self.in_interrupt {
-            return;
-        }
+// This is all poorly implemented. If this is not making much sense, it might be
+// best to re-implement everything correctly. Right now, I'm just trying to get
+// the saturn firmware to work just well enough.
 
+impl Nvic {
+    pub fn set_intr_pending(&mut self, irq: i32) {
+        trace!("Set irq pending irq={}", irq);
+        let bit = IRQ_OFFSET + irq;
+        assert!(bit > 0);
+        self.pending |= 1 << (IRQ_OFFSET + irq);
+    }
+
+    pub fn get_and_clear_next_intr_pending(&mut self) -> Option<i32> {
+        if self.pending != 0 {
+            let bit = self.pending.trailing_zeros();
+            self.pending &= !(1 << bit);
+            let irq = (bit as i32) - IRQ_OFFSET;
+            Some(irq)
+        } else {
+            None
+        }
+    }
+
+    pub fn maybe_set_systick_intr_pending(&mut self) {
         if let Some(systick_period) = self.systick_period {
             let n = crate::emulator::NUM_INSTRUCTIONS.load(Ordering::Relaxed);
-            if n + systick_period as u64 > self.last_systick_trigger {
+            let delta_num_instructions = n - self.last_systick_trigger;
+            if (systick_period as u64) < delta_num_instructions {
                 self.last_systick_trigger = n;
-                self.run_interrupt(sys, vector_table_addr, irq::SYSTICK);
+                self.set_intr_pending(irq::SYSTICK);
             }
         }
     }
 
+   fn are_interrupts_disabled(sys: &System) -> bool {
+        let primask = sys.uc.borrow().reg_read(RegisterARM::PRIMASK).unwrap();
+        return primask != 0;
+    }
+
+    pub fn run_pending_interrupts(&mut self, sys: &System, vector_table_addr: u32) {
+        self.maybe_set_systick_intr_pending();
+
+        if Self::are_interrupts_disabled(sys) || self.in_interrupt {
+            return;
+        }
+
+        if let Some(irq) = self.get_and_clear_next_intr_pending() {
+            self.run_interrupt(sys, vector_table_addr, irq);
+        }
+    }
+
     fn read_vector_addr(sys: &System, vector_table_addr: u32, irq: i32) -> u32 {
-        let vaddr = vector_table_addr + 4*(16 + irq) as u32;
+        // 4 because of ptr size
+        let vaddr = vector_table_addr + 4*(IRQ_OFFSET + irq) as u32;
 
         let mut vector = [0,0,0,0];
         sys.uc.borrow().mem_read(vaddr as u64, &mut vector).unwrap();
