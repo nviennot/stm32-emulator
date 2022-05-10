@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::sync::Mutex;
+use std::{sync::Mutex, rc::Rc, cell::RefCell};
 
 use sdl2::{
     event::Event,
@@ -49,7 +49,7 @@ impl SdlEngine {
     }
 
     /// Returns false if we need to quit
-    pub fn pump_events(&mut self) -> bool {
+    pub fn pump_events(&mut self, framebuffers: &[Rc<RefCell<super::Sdl>>]) -> bool {
         for event in self.event_pump.poll_iter() {
             match event {
                 Event::Quit {..} |
@@ -57,10 +57,13 @@ impl SdlEngine {
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     return false;
                 },
-                /*
-                Event::MouseButtonDown { timestamp: (), window_id: (), which: (), mouse_btn: (), clicks: (), x: (), y: () }
-                Event::MouseButtonUp { timestamp: (), window_id: (), which: (), mouse_btn: (), clicks: (), x: (), y: () }
-                */
+                Event::MouseMotion { ref window_id, .. } |
+                Event::MouseButtonDown { ref window_id, .. } |
+                Event::MouseButtonUp { ref window_id, .. } => {
+                    if let Some(fb) = framebuffers.iter().find(|fb| fb.borrow().window_id == *window_id) {
+                        fb.borrow_mut().process_event(event);
+                    }
+                }
                 _ => {}
             }
         }

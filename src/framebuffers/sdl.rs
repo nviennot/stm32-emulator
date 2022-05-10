@@ -2,11 +2,15 @@
 
 use std::time::{Instant, Duration};
 
+use sdl2::mouse::MouseButton;
 use sdl2::{pixels::PixelFormatEnum, surface::Surface, render::Canvas, video::Window};
+use sdl2::{
+    event::Event,
+};
 
 use super::{FramebufferConfig, Framebuffer, Color, sdl_engine::SDL};
 
-pub const REFRESH_DURATION_MILLIS: u64 = 10;
+pub const REFRESH_DURATION_MILLIS: u64 = 100;
 
 /*
 lazy_static! {
@@ -23,6 +27,8 @@ pub struct Sdl {
     framebuffer: Surface<'static>,
     need_redraw: bool,
     last_redraw: Instant,
+    pub window_id: u32,
+    touch_position: Option<(u16, u16)>,
 }
 
 impl Sdl {
@@ -36,8 +42,10 @@ impl Sdl {
 
         let last_redraw = Instant::now();
         let need_redraw = false;
+        let window_id = canvas.window().id();
+        let touch_position = None;
 
-        Self { config, canvas, framebuffer, need_redraw, last_redraw }
+        Self { config, canvas, framebuffer, need_redraw, last_redraw, window_id, touch_position }
     }
 
     fn should_redraw(&mut self) -> bool {
@@ -66,6 +74,23 @@ impl Sdl {
 
         self.canvas.present();
     }
+
+    pub fn process_event(&mut self, event: Event) {
+        match event {
+            Event::MouseMotion { x, y, .. } => {
+                if self.touch_position.is_some() {
+                    self.touch_position = Some((x as u16, y as u16));
+                }
+            }
+            Event::MouseButtonDown { mouse_btn: MouseButton::Left, x, y, .. } => {
+                self.touch_position = Some((x as u16, y as u16));
+            }
+            Event::MouseButtonUp { mouse_btn:MouseButton::Left, .. } => {
+                self.touch_position = None;
+            }
+            _ => {}
+        }
+    }
 }
 
 
@@ -88,6 +113,6 @@ impl Framebuffer for Sdl {
     }
 
     fn get_touch_position(&self) -> Option<(u16, u16)> {
-        None
+        self.touch_position
     }
 }

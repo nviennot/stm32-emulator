@@ -5,7 +5,7 @@ use std::{convert::TryFrom, collections::VecDeque, rc::Rc, cell::RefCell};
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::{system::System, util::{Rect, Point}, framebuffers::Framebuffer};
+use crate::{system::System, util::{Rect, Point}, framebuffers::{Framebuffer, Framebuffers}};
 use super::ExtDevice;
 
 #[derive(Debug, Deserialize)]
@@ -37,7 +37,8 @@ pub struct Display {
 }
 
 impl Display {
-    pub fn new(config: DisplayConfig, framebuffer: Rc<RefCell<dyn Framebuffer>>) -> Result<Self> {
+    pub fn new(config: DisplayConfig, framebuffers: &Framebuffers) -> Result<Self> {
+        let framebuffer = framebuffers.get(&config.framebuffer)?;
         let width = framebuffer.borrow().get_config().width;
         let height = framebuffer.borrow().get_config().height;
 
@@ -49,7 +50,7 @@ impl Display {
             drawing: false,
             current_position: Point::default(),
             width, height,
-            framebuffer,
+            framebuffer: framebuffer.clone(),
             config,
         })
     }

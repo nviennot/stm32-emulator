@@ -4,11 +4,13 @@ mod spi_flash;
 mod usart_probe;
 mod display;
 mod lcd;
+mod touchscreen;
 
 use spi_flash::{SpiFlashConfig, SpiFlash};
 use usart_probe::{UsartProbeConfig, UsartProbe};
 use display::{DisplayConfig, Display};
 use lcd::{LcdConfig, Lcd};
+use touchscreen::{TouchscreenConfig, Touchscreen};
 
 use std::{rc::Rc, cell::RefCell};
 use serde::Deserialize;
@@ -23,6 +25,7 @@ pub struct ExtDevicesConfig {
     pub usart_probe: Option<Vec<UsartProbeConfig>>,
     pub display: Option<Vec<DisplayConfig>>,
     pub lcd: Option<Vec<LcdConfig>>,
+    pub touchscreen: Option<Vec<TouchscreenConfig>>,
 }
 
 pub struct ExtDevices {
@@ -30,6 +33,7 @@ pub struct ExtDevices {
     pub usart_probes: Vec<Rc<RefCell<UsartProbe>>>,
     pub displays: Vec<Rc<RefCell<Display>>>,
     pub lcds: Vec<Rc<RefCell<Lcd>>>,
+    pub touchscreens: Vec<Rc<RefCell<Touchscreen>>>,
 }
 
 impl ExtDevices {
@@ -46,6 +50,12 @@ impl ExtDevices {
        )
         .or_else(||
         self.lcds.iter()
+            .filter(|d| d.borrow().config.peripheral == peri_name)
+            .next()
+            .map(|d| d.clone() as Rc<RefCell<dyn ExtDevice<(), u8>>>)
+       )
+        .or_else(||
+        self.touchscreens.iter()
             .filter(|d| d.borrow().config.peripheral == peri_name)
             .next()
             .map(|d| d.clone() as Rc<RefCell<dyn ExtDevice<(), u8>>>)
@@ -70,20 +80,19 @@ impl ExtDevicesConfig {
             .map(|config| UsartProbe::new(config).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
-        let framebuffers = framebuffers.as_vec();
         let displays = self.display.unwrap_or_default().into_iter()
-            .map(|config| {
-                let fb = framebuffers.iter().find(|fb| fb.borrow().get_config().name == config.framebuffer)
-                    .expect("framebuffer not found");
-                Display::new(config, fb.clone()).map(RefCell::new).map(Rc::new)
-            })
+            .map(|config| Display::new(config, framebuffers).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
         let lcds = self.lcd.unwrap_or_default().into_iter()
             .map(|config| Lcd::new(config).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
-        Ok(ExtDevices { spi_flashes, usart_probes, displays, lcds })
+        let touchscreens = self.touchscreen.unwrap_or_default().into_iter()
+            .map(|config| Touchscreen::new(config, framebuffers).map(RefCell::new).map(Rc::new))
+            .collect::<Result<_>>()?;
+
+        Ok(ExtDevices { spi_flashes, usart_probes, displays, lcds, touchscreens })
     }
 }
 
