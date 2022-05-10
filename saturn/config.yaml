@@ -16,18 +16,27 @@ regions:
   - name: RAM
     start: 0x20000000
     size: 0x20000
+framebuffers:
+  - name: main_display
+    width: 480
+    height: 320
+    mode: rgb565
+    image_backend:
+      file: framebuffer.png
 devices:
   spi_flash:
     - peripheral: SPI3
       jedec_id: 0xef4016
       file: ext-flash.bin
       size: 0x400000
+  touch_screen:
+    - peripheral: SPI2
+      framebuffer: main_display
   usart_probe:
     - peripheral: USART1
   display:
     - peripheral: FSMC.BANK1
-      width: 480
-      height: 320
+      framebuffer: main_display
       cmd_addr_bit: 0x2000
       replies:
         - cmd: 0xd3 # id4
@@ -36,7 +45,6 @@ devices:
           data: [0x00, 0x93, 0x30, 0x93]
         - cmd: 0x04 # device id
           data: [0x30, 0x54, 0x80, 0x66]
-
 patches:
   # NOP a delay_us()
   - start: 0x08051e98
@@ -47,3 +55,6 @@ patches:
   # Nop the fpga not being there
   - start: 0x08041F92
     data: [0x00, 0xbf]
+  # Skip bad eeprom data. Go to main menu
+  - start: 0x08034058
+    data: [0x48, 0xb1]

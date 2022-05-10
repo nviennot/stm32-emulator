@@ -10,9 +10,12 @@ use usart_probe::{UsartProbeConfig, UsartProbe};
 use display::{DisplayConfig, Display};
 use lcd::{LcdConfig, Lcd};
 
-use std::{convert::TryFrom, rc::Rc, cell::RefCell};
+use std::{rc::Rc, cell::RefCell};
 use serde::Deserialize;
 use anyhow::Result;
+
+use crate::{system::System, framebuffers::Framebuffers};
+
 
 #[derive(Debug, Deserialize, Default)]
 pub struct ExtDevicesConfig {
@@ -57,33 +60,34 @@ impl ExtDevices {
     }
 }
 
-impl TryFrom<ExtDevicesConfig> for ExtDevices {
-    type Error = anyhow::Error;
-
-    fn try_from(config: ExtDevicesConfig) -> Result<Self> {
-        let spi_flashes = config.spi_flash.unwrap_or_default().into_iter()
+impl ExtDevicesConfig {
+    pub fn into_ext_devices(self, framebuffers: &Framebuffers) -> Result<ExtDevices> {
+        let spi_flashes = self.spi_flash.unwrap_or_default().into_iter()
             .map(|config| SpiFlash::new(config).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
-        let usart_probes = config.usart_probe.unwrap_or_default().into_iter()
+        let usart_probes = self.usart_probe.unwrap_or_default().into_iter()
             .map(|config| UsartProbe::new(config).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
-        let displays = config.display.unwrap_or_default().into_iter()
-            .map(|config| Display::new(config).map(RefCell::new).map(Rc::new))
+        let framebuffers = framebuffers.as_vec();
+        let displays = self.display.unwrap_or_default().into_iter()
+            .map(|config| {
+                let fb = framebuffers.iter().find(|fb| fb.borrow().get_config().name == config.framebuffer)
+                    .expect("framebuffer not found");
+                Display::new(config, fb.clone()).map(RefCell::new).map(Rc::new)
+            })
             .collect::<Result<_>>()?;
 
-        let lcds = config.lcd.unwrap_or_default().into_iter()
+        let lcds = self.lcd.unwrap_or_default().into_iter()
             .map(|config| Lcd::new(config).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
-        Ok(Self { spi_flashes, usart_probes, displays, lcds })
+        Ok(ExtDevices { spi_flashes, usart_probes, displays, lcds })
     }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
-
-use crate::system::System;
 
 pub trait ExtDevice<A, T> {
     /// Should returns "{peri_name} {ext_device_name}"

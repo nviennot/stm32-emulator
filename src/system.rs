@@ -2,7 +2,7 @@
 
 use std::{rc::Rc, cell::RefCell};
 use unicorn_engine::{Unicorn, unicorn_const::Permission};
-use crate::{peripherals::Peripherals, ext_devices::ExtDevices, util::{UniErr, round_up, self}, config::Config};
+use crate::{peripherals::Peripherals, ext_devices::ExtDevices, util::{UniErr, round_up, self}, config::Config, framebuffers::Framebuffers};
 use anyhow::{Context as _, Result};
 use svd_parser::svd::Device as SvdDevice;
 
@@ -80,13 +80,16 @@ fn load_memory_regions(uc: &mut Unicorn<()>, config: &Config) -> Result<()> {
     Ok(())
 }
 
-pub fn prepare<'a, 'b>(uc: &'a mut Unicorn<'b, ()>, config: Config, svd_device: SvdDevice) -> Result<System<'a, 'b>> {
+pub fn prepare<'a, 'b>(uc: &'a mut Unicorn<'b, ()>, config: Config, svd_device: SvdDevice)
+-> Result<(System<'a, 'b>, Framebuffers)>
+  {
     load_memory_regions(uc, &config)?;
 
-    let ext_devices = config.devices.unwrap_or(Default::default()).try_into()?;
+    let framebuffers = Framebuffers::from_config(config.framebuffers.unwrap_or_default());
+    let ext_devices = config.devices.unwrap_or_default().into_ext_devices(&framebuffers)?;
     let peripherals = Peripherals::from_svd(svd_device, &ext_devices);
 
     let mut system = System::new(uc, peripherals, ext_devices);
     system.bind_peripherals_to_unicorn()?;
-    Ok(system)
+    Ok((system, framebuffers))
 }

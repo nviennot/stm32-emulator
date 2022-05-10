@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::{convert::TryFrom, collections::VecDeque};
+use std::{convert::TryFrom, collections::VecDeque, rc::Rc, cell::RefCell};
 
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::{system::System, util::{Rect, Point}};
+use crate::{system::System, util::{Rect, Point}, framebuffers::Framebuffer};
 use super::ExtDevice;
 
 #[derive(Debug, Deserialize)]
 pub struct DisplayConfig {
     pub peripheral: String,
-    pub width: u16,
-    pub height: u16,
     pub cmd_addr_bit: u32,
     pub swap_bytes: Option<bool>,
     pub replies: Option<Vec<ReplyConfig>>,
+    pub framebuffer: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,49 +31,36 @@ pub struct Display {
     reply: VecDeque<u16>,
     drawing: bool,
     current_position: Point,
-    framebuffer_raw: Vec<u16>,
+    width: u16,
+    height: u16,
+    framebuffer: Rc<RefCell<dyn Framebuffer>>,
 }
 
 impl Display {
-    pub fn new(config: DisplayConfig) -> Result<Self> {
-        let mut framebuffer_raw = Vec::new();
-        framebuffer_raw.resize(config.height as usize * config.width as usize, 0);
+    pub fn new(config: DisplayConfig, framebuffer: Rc<RefCell<dyn Framebuffer>>) -> Result<Self> {
+        let width = framebuffer.borrow().get_config().width;
+        let height = framebuffer.borrow().get_config().height;
 
         Ok(Self {
-            name: "".to_string(),
-            draw_region: Rect { left: 0, top: 0, right: config.width-1, bottom: config.height-1 },
+            name: "?".to_string(), // This is filled out on connect_peripheral()
+            draw_region: Rect { left: 0, top: 0, right: width-1, bottom: height-1 },
             cmd: None,
             reply: Default::default(),
             drawing: false,
             current_position: Point::default(),
-            framebuffer_raw,
+            width, height,
+            framebuffer,
             config,
         })
     }
 
-    pub fn write_framebuffer_to_file(&self, file: &str) -> Result<()> {
-        use std::io::prelude::*;
-        let mut b = vec![];
-        for c in &self.framebuffer_raw {
-            b.push(*c as u8);
-            b.push((c >> 8) as u8);
-        }
-
-        let mut f = std::fs::File::create(file)?;
-        f.write_all(&b)?;
-
-        info!("Wrote framebuffer to {}", file);
-        Ok(())
-    }
-
     #[inline]
-    fn get_framebuffer_raw_pixel(&mut self, x: u16, y: u16) -> &mut u16 {
-        let x = x.min(self.config.width-1);
-        let y = y.min(self.config.height-1);
-        let x = x as usize;
-        let y = y as usize;
-        &mut self.framebuffer_raw[(x + y * self.config.width as usize)]
+    fn get_framebuffer_pixel_index(&mut self, x: u16, y: u16) -> usize {
+        let x = x.min(self.width-1) as usize;
+        let y = y.min(self.height-1) as usize;
+        x + y * self.width as usize
     }
+
 
     fn draw_pixel(&mut self, c: u16) {
         let c = if self.config.swap_bytes.unwrap_or_default() {
@@ -84,7 +70,8 @@ impl Display {
         };
 
         let Point { mut x, mut y } = self.current_position;
-        *self.get_framebuffer_raw_pixel(x, y) = c;
+        let i = self.get_framebuffer_pixel_index(x, y);
+        self.framebuffer.borrow_mut().get_pixels()[i] = c;
 
         x += 1;
         if x > self.draw_region.right {

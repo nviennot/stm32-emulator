@@ -77,8 +77,7 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
 
     let vector_table_addr = config.cpu.vector_table;
 
-    let sys = crate::system::prepare(&mut uc, config, svd_device)?;
-    let display = sys.d.displays.first().map(|d| d.clone());
+    let (sys, framebuffers) = crate::system::prepare(&mut uc, config, svd_device)?;
 
     let diassembler = Capstone::new()
         .arm()
@@ -105,6 +104,13 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
             }
 
             let n = NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
+
+            /*
+            if pc == 0x08046F02 {
+                warn!("Loop!");
+                //trace_instructions = true;
+            }
+            */
 
             if trace_instructions {
                 info!("{}", disassemble_instruction(&diassembler, uc, pc));
@@ -229,8 +235,8 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
         dump_stack(&mut uc, n);
     }
 
-    if let Some(display) = display {
-        display.borrow().write_framebuffer_to_file("framebuffer.bin")?;
+    for fb in framebuffers.images {
+        fb.borrow().write_to_disk()?;
     }
 
     Ok(())
