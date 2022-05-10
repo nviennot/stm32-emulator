@@ -24,8 +24,9 @@ termcolor = "1.1"
 num_enum = "0.5"
 
 capstone = "0.11"
-#sdl2 = "0.35"
 png = "0.17"
+
+sdl2 = {version="0.35", features=["bundled"]}
 
 [patch.crates-io]
 unicorn-engine = { path = "unicorn" }

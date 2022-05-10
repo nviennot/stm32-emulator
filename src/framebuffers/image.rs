@@ -35,7 +35,7 @@ impl Image {
     }
 
     pub fn write_to_disk(&self) -> Result<()> {
-        let path = &self.config.image_backend.as_ref().unwrap().file;
+        let path = &self.config.image.as_ref().unwrap().file;
         let file = File::create(path).unwrap();
         let ref mut w = BufWriter::new(file);
 

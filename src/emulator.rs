@@ -3,7 +3,7 @@
 use std::{mem::MaybeUninit, sync::atomic::{AtomicU64, Ordering, AtomicBool}, cell::RefCell};
 use svd_parser::svd::Device as SvdDevice;
 use unicorn_engine::{unicorn_const::{Arch, Mode, HookType, MemType}, Unicorn, RegisterARM};
-use crate::{config::Config, util::UniErr, Args, system::System};
+use crate::{config::Config, util::UniErr, Args, system::System, framebuffers::sdl_engine::{PUMP_EVENT_INST_INTERVAL, SDL}};
 use anyhow::{Context as _, Result, bail};
 use capstone::prelude::*;
 
@@ -33,6 +33,7 @@ pub static mut LAST_INSTRUCTION: (u32, u8) = (0,0);
 pub static NUM_INSTRUCTIONS: AtomicU64 = AtomicU64::new(0);
 static CONTINUE_EXECUTION: AtomicBool = AtomicBool::new(false);
 static BUSY_LOOP_REACHED: AtomicBool = AtomicBool::new(false);
+static STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 fn disassemble_instruction(diassembler: &Capstone, uc: &Unicorn<()>, pc: u64) -> String {
     let mut instr = [0; 4];
@@ -119,6 +120,16 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
             if n % interrupt_period as u64 == 0 {
                 let sys = System { uc: RefCell::new(uc), p: p.clone(), d: d.clone() };
                 p.nvic.borrow_mut().run_pending_interrupts(&sys, vector_table_addr);
+            }
+
+            if n & PUMP_EVENT_INST_INTERVAL == 0 {
+                for fb in &framebuffers.sdls {
+                    fb.borrow_mut().maybe_redraw();
+                }
+                if !SDL.lock().unwrap().pump_events() {
+                    STOP_REQUESTED.store(true, Ordering::Relaxed);
+                    uc.emu_stop().unwrap();
+                }
             }
         }).expect("add_code_hook failed");
     }
@@ -207,6 +218,11 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
             max_instructions.unwrap_or(0) as usize,
         ).map_err(UniErr);
         pc = uc.reg_read(RegisterARM::PC).expect("failed to get pc");
+
+        if STOP_REQUESTED.load(Ordering::Relaxed) {
+            info!("Stop requested");
+            break;
+        }
 
         if let Err(e) = result {
             if CONTINUE_EXECUTION.swap(false, Ordering::AcqRel) {

@@ -17,12 +17,13 @@ regions:
     start: 0x20000000
     size: 0x20000
 framebuffers:
-  - name: main_display
+  - name: Touchscreen
     width: 480
     height: 320
     mode: rgb565
-    image_backend:
-      file: framebuffer.png
+    sdl: true
+    #image:
+    #  file: framebuffer.png
 devices:
   spi_flash:
     - peripheral: SPI3
@@ -31,12 +32,12 @@ devices:
       size: 0x400000
   touch_screen:
     - peripheral: SPI2
-      framebuffer: main_display
+      framebuffer: Touchscreen
   usart_probe:
     - peripheral: USART1
   display:
     - peripheral: FSMC.BANK1
-      framebuffer: main_display
+      framebuffer: Touchscreen
       cmd_addr_bit: 0x2000
       replies:
         - cmd: 0xd3 # id4
