@@ -94,7 +94,6 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
         let p = sys.p.clone();
         let d = sys.d.clone();
         let interrupt_period = args.interrupt_period;
-        //let sdl_framebuffers = framebuffers.sdls.clone();
         sys.uc.borrow_mut().add_code_hook(0, u64::MAX, move |uc, pc, size| {
             unsafe {
                 if busy_loop_stop && LAST_INSTRUCTION.0 == pc as u32 {
@@ -107,15 +106,11 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
 
             let n = NUM_INSTRUCTIONS.fetch_add(1, Ordering::Acquire);
 
-            /*
-            if pc == 0x08046F02 {
-                warn!("Loop!");
-                //trace_instructions = true;
-            }
-            */
-
             if trace_instructions {
                 info!("{}", disassemble_instruction(&diassembler, uc, pc));
+
+                    STOP_REQUESTED.store(true, Ordering::Relaxed);
+                    uc.emu_stop().unwrap();
             }
 
             if n % interrupt_period as u64 == 0 {

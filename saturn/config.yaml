@@ -33,6 +33,7 @@ devices:
   touchscreen:
     - peripheral: SPI2
       framebuffer: Touchscreen
+      swap_x_y: true
       flip_x: true
   usart_probe:
     - peripheral: USART1

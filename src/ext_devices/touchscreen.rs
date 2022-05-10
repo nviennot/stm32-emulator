@@ -20,6 +20,7 @@ pub struct TouchscreenConfig {
     pub framebuffer: String,
     pub flip_x: Option<bool>,
     pub flip_y: Option<bool>,
+    pub swap_x_y: Option<bool>,
 }
 
 pub struct Touchscreen {
@@ -62,28 +63,37 @@ impl ExtDevice<(), u8> for Touchscreen {
             let fb = self.framebuffer.borrow();
             const MAX: u32 = 0xfff;
             if let Some(pos) = fb.get_touch_position() {
-                let v = match cmd.op {
+                let op = match (self.config.swap_x_y, cmd.op) {
+                    (Some(true), Operation::MeasureX) => Operation::MeasureY,
+                    (Some(true), Operation::MeasureY) => Operation::MeasureX,
+                    _ => cmd.op,
+                };
+
+                let v = match op {
                     Operation::MeasureX => (pos.0 as u32 * MAX) / fb.get_config().width as u32,
                     Operation::MeasureY => (pos.1 as u32 * MAX) / fb.get_config().height as u32,
                     Operation::MeasureZ1 => 10,
                     Operation::MeasureZ2 => 10,
                 };
 
-                let v = match (cmd.op, self.config.flip_x, self.config.flip_y) {
+                let v = match (op, self.config.flip_x, self.config.flip_y) {
                     (Operation::MeasureX, Some(true), _) => (MAX - v),
                     (Operation::MeasureY, _, Some(true)) => (MAX - v),
                     _ => v,
                 };
 
+                // Not sure why we need this
+                let v = v >> 1;
+
                 // We don't care if we are doing a 12bit or 8bit convertion as MSB comes first.
                 // 0000AABB CCDDEEFF -> AABBCCDD EEFF0000
+                debug!("{} cmd={:?} reply={:04x}", self.name, cmd, v);
                 self.reply = Some(vec![(v >> 4) as u8, (v << 4) as u8].into());
             } else {
                 // all zeros
                 self.reply = None;
             }
 
-            debug!("{} cmd={:?} reply={:?}", self.name, cmd, self.reply);
         }
     }
 }
