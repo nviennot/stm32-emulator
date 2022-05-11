@@ -10,8 +10,10 @@ pub mod fsmc;
 pub mod i2c;
 pub mod nvic;
 pub mod scb;
+pub mod sw_spi;
 
 use rcc::*;
+use serde::Deserialize;
 use spi::*;
 use usart::*;
 use systick::*;
@@ -21,17 +23,24 @@ use fsmc::*;
 use i2c::*;
 use nvic::*;
 use scb::*;
+use sw_spi::*;
 
-use std::{collections::{BTreeMap, VecDeque, HashMap}, cell::RefCell, rc::Rc};
+use std::{collections::{BTreeMap, VecDeque, HashMap}, cell::RefCell};
 use svd_parser::svd::{RegisterInfo, Device as SvdDevice};
 
 use crate::{system::System, ext_devices::ExtDevices};
+
+#[derive(Debug, Deserialize, Default)]
+pub struct PeripheralsConfig {
+    pub software_spi: Option<Vec<SoftwareSpiConfig>>,
+}
 
 #[derive(Default)]
 pub struct Peripherals {
     debug_peripherals: Vec<PeripheralSlot<GenericPeripheral>>,
     peripherals: Vec<PeripheralSlot<RefCell<Box<dyn Peripheral>>>>,
-    pub nvic: Rc<RefCell<Nvic>>,
+    pub nvic: RefCell<Nvic>,
+    pub gpio: RefCell<GpioPorts>,
 }
 
 pub struct PeripheralSlot<T> {
@@ -64,7 +73,7 @@ impl Peripherals {
         };
 
         let p = None
-            .or_else(|| NvicWrapper::new(&name, &self.nvic))
+            .or_else(|| NvicWrapper::new(&name))
             .or_else(||     SysTick::new(&name))
             .or_else(||         Scb::new(&name))
             .or_else(||        Gpio::new(&name))
@@ -99,8 +108,8 @@ impl Peripherals {
         }
     }
 
-    pub fn from_svd(mut svd_device: SvdDevice, ext_devices: &ExtDevices) -> Self {
-        let mut peripherals = Peripherals::default();
+    pub fn from_svd(mut svd_device: SvdDevice, config: PeripheralsConfig, gpio: GpioPorts, ext_devices: &ExtDevices) -> Self {
+        let mut peripherals = Self { gpio: RefCell::new(gpio), .. Peripherals::default() };
 
         svd_device.peripherals.sort_by_key(|f| f.base_address);
         let svd_peripherals = svd_device.peripherals.iter()
@@ -128,6 +137,10 @@ impl Peripherals {
                     trace!("p={} addr=0x{:08x} reg_name={}", p.name, p.base_address as u32 + r.address_offset, r.name);
                 }
             }
+        }
+
+        for sw_spi_config in config.software_spi.unwrap_or_default() {
+            SoftwareSpi::register(sw_spi_config, &mut peripherals.gpio.borrow_mut(), ext_devices);
         }
 
         peripherals.finish_registration();

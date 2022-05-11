@@ -16,7 +16,7 @@ use std::{rc::Rc, cell::RefCell};
 use serde::Deserialize;
 use anyhow::Result;
 
-use crate::{system::System, framebuffers::Framebuffers};
+use crate::{system::System, framebuffers::Framebuffers, peripherals::gpio::GpioPorts};
 
 
 #[derive(Debug, Deserialize, Default)]
@@ -71,7 +71,7 @@ impl ExtDevices {
 }
 
 impl ExtDevicesConfig {
-    pub fn into_ext_devices(self, framebuffers: &Framebuffers) -> Result<ExtDevices> {
+    pub fn into_ext_devices(self, gpio: &mut GpioPorts, framebuffers: &Framebuffers) -> Result<ExtDevices> {
         let spi_flashes = self.spi_flash.unwrap_or_default().into_iter()
             .map(|config| SpiFlash::new(config).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
@@ -89,7 +89,7 @@ impl ExtDevicesConfig {
             .collect::<Result<_>>()?;
 
         let touchscreens = self.touchscreen.unwrap_or_default().into_iter()
-            .map(|config| Touchscreen::new(config, framebuffers).map(RefCell::new).map(Rc::new))
+            .map(|config| Touchscreen::new(config, gpio, framebuffers).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
         Ok(ExtDevices { spi_flashes, usart_probes, displays, lcds, touchscreens })

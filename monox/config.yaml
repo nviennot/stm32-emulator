@@ -16,24 +16,45 @@ regions:
   - name: RAM
     start: 0x20000000
     size: 0x20000
-devices:
-  sw_spi:
-    - name: LCD_SPI
+framebuffers:
+  - name: Touchscreen
+    width: 480
+    height: 320
+    mode: rgb565
+    sdl: true
+    #image:
+    #  file: framebuffer.png
+peripherals:
+  software_spi:
+    - name: SW_SPI_LCD
       cs: PA15
       clk: PC7
       miso: PC6
       mosi: PG3
+    - name: SW_SPI_TOUCH
+      cs: PD12
+      clk: PD13
+      mosi: PG4
+      miso: PG3
+devices:
+  touchscreen:
+    - peripheral: SW_SPI_TOUCH
+      framebuffer: Touchscreen
+      touch_detected_pin: PG6
+      swap_x_y: true
+      flip_x: true
+      flip_y: true
   spi_flash:
     - peripheral: SPI2
       jedec_id: 0xef4016
       file: PMS_UI_001.bin
       size: 0x2000000
+  usart_probe:
+    - peripheral: USART1
   display:
     - peripheral: FSMC.BANK1
-      width: 480
-      height: 320
+      framebuffer: Touchscreen
       cmd_addr_bit: 0x20000
-      swap_bytes: true
   lcd:
     - peripheral: SPI1
       width: 3840
@@ -42,12 +63,32 @@ patches:
   # NOP systick delay
   - start: 0x0800b656
     data: [0x70, 0x47]
+  - start: 0x0800b9c4
+    data: [0x70, 0x47]
+  # NOP usb init
+  - start: 0x0801dd18
+    data: [0x70, 0x47]
   # NOP delay_cycle
   - start: 0x0800d434
+    data: [0x70, 0x47]
+  # NOP delay_cycle
+  - start: 0x0801b338
     data: [0x70, 0x47]
   # NOP display drawing
   # - start: 0x08018b58
   #  data: [0x70, 0x47]
   # NOP LCD init drawing
-  # - start: 0x0800e4da
-  #   data: [0x70, 0x47]
+  - start: 0x0800e4da
+    data: [0x70, 0x47]
+  # NOP 200,000 of LCD init stuff
+  - start: 0x080086e8
+    data: [0x00, 0xbf]
+  # RET usart3 something
+  - start: 0x0800F738
+    data: [0x70, 0x47]
+  # RET adc1 something
+  - start: 0x0800B928
+    data: [0x70, 0x47]
+  # Return -1 for a duration_now() that is triggered by tim3 intr. We don't have timers yet.
+  - start: 0x0800b64c
+    data: [0x4f, 0xf0, 0xff, 0x30, 0x70, 0x47]

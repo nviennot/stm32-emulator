@@ -37,7 +37,11 @@ impl SysTick {
 impl Peripheral for SysTick {
     fn read(&mut self, _sys: &System, offset: u32) -> u32 {
         match offset {
-            0x0000 => self.ctl,
+            0x0000 => {
+                self.val_toggle = !self.val_toggle;
+                // toggle the count bit
+                self.ctl | if self.val_toggle { 0 } else { 1 << 16 }
+            }
             0x0004 => self.reload,
             0x0008 => {
                 self.val_toggle = !self.val_toggle;

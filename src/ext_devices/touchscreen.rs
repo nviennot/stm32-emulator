@@ -8,6 +8,7 @@ use anyhow::Result;
 use serde::Deserialize;
 
 use crate::framebuffers::{Framebuffer, Framebuffers};
+use crate::peripherals::gpio::{GpioPorts, Pin};
 use crate::system::System;
 
 use super::ExtDevice;
@@ -21,6 +22,8 @@ pub struct TouchscreenConfig {
     pub flip_x: Option<bool>,
     pub flip_y: Option<bool>,
     pub swap_x_y: Option<bool>,
+    pub touch_detected_pin: Option<String>,
+    pub scale_down: Option<u32>,
 }
 
 pub struct Touchscreen {
@@ -32,8 +35,16 @@ pub struct Touchscreen {
 }
 
 impl Touchscreen {
-    pub fn new(config: TouchscreenConfig, framebuffers: &Framebuffers) -> Result<Self> {
+    pub fn new(config: TouchscreenConfig, gpio: &mut GpioPorts, framebuffers: &Framebuffers) -> Result<Self> {
         let framebuffer = framebuffers.get(&config.framebuffer)?;
+
+        if let Some(ref touch_detected_pin) = config.touch_detected_pin {
+            let touch_detected_pin = Pin::from_str(touch_detected_pin);
+            let framebuffer = framebuffer.clone();
+            gpio.add_read_callback(touch_detected_pin, move |_sys| {
+                framebuffer.borrow().get_touch_position().is_none()
+            });
+        }
 
         Ok(Self {
             config,
@@ -83,7 +94,11 @@ impl ExtDevice<(), u8> for Touchscreen {
                 };
 
                 // Not sure why we need this
-                let v = v >> 1;
+                let v = if let Some(scale_down) = self.config.scale_down {
+                    v / scale_down
+                } else {
+                    v
+                };
 
                 // We don't care if we are doing a 12bit or 8bit convertion as MSB comes first.
                 // 0000AABB CCDDEEFF -> AABBCCDD EEFF0000

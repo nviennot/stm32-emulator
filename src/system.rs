@@ -2,7 +2,7 @@
 
 use std::{rc::Rc, cell::RefCell};
 use unicorn_engine::{Unicorn, unicorn_const::Permission};
-use crate::{peripherals::Peripherals, ext_devices::ExtDevices, util::{UniErr, round_up, self}, config::Config, framebuffers::Framebuffers};
+use crate::{peripherals::{Peripherals, gpio::GpioPorts}, ext_devices::ExtDevices, util::{UniErr, round_up, self}, config::Config, framebuffers::Framebuffers};
 use anyhow::{Context as _, Result};
 use svd_parser::svd::Device as SvdDevice;
 
@@ -86,8 +86,9 @@ pub fn prepare<'a, 'b>(uc: &'a mut Unicorn<'b, ()>, config: Config, svd_device: 
     load_memory_regions(uc, &config)?;
 
     let framebuffers = Framebuffers::from_config(config.framebuffers.unwrap_or_default());
-    let ext_devices = config.devices.unwrap_or_default().into_ext_devices(&framebuffers)?;
-    let peripherals = Peripherals::from_svd(svd_device, &ext_devices);
+    let mut gpio: GpioPorts = Default::default();
+    let ext_devices = config.devices.unwrap_or_default().into_ext_devices(&mut gpio, &framebuffers)?;
+    let peripherals = Peripherals::from_svd(svd_device, config.peripherals.unwrap_or_default(), gpio, &ext_devices);
 
     let mut system = System::new(uc, peripherals, ext_devices);
     system.bind_peripherals_to_unicorn()?;

@@ -10,7 +10,7 @@ use sdl2::{
 
 use super::{FramebufferConfig, Framebuffer, Color, sdl_engine::SDL};
 
-pub const REFRESH_DURATION_MILLIS: u64 = 100;
+pub const REFRESH_DURATION_MILLIS: u64 = 20;
 
 /*
 lazy_static! {

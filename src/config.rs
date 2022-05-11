@@ -27,6 +27,7 @@ pub struct Config {
    pub cpu: Cpu,
    pub regions: Vec<Region>,
    pub patches: Option<Vec<Patch>>,
+   pub peripherals: Option<crate::peripherals::PeripheralsConfig>,
    pub devices: Option<crate::ext_devices::ExtDevicesConfig>,
    pub framebuffers: Option<Vec<crate::framebuffers::FramebufferConfig>>,
 }

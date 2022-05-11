@@ -35,6 +35,7 @@ devices:
       framebuffer: Touchscreen
       swap_x_y: true
       flip_x: true
+      scale_down: 2
   usart_probe:
     - peripheral: USART1
   display:

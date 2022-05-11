@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::{rc::Rc, cell::RefCell, sync::atomic::Ordering};
+use std::sync::atomic::Ordering;
 
 use unicorn_engine::{RegisterARM, Unicorn};
 
@@ -245,12 +245,12 @@ impl Peripheral for Nvic {
 
 /// The next part is glue. Maybe we could have a better architecture.
 
-pub struct NvicWrapper(Rc<RefCell<Nvic>>);
+pub struct NvicWrapper;
 
 impl NvicWrapper {
-    pub fn new(name: &str, nvic: &Rc<RefCell<Nvic>>) -> Option<Box<dyn Peripheral>> {
+    pub fn new(name: &str) -> Option<Box<dyn Peripheral>> {
         if name == "NVIC" {
-            Some(Box::new(Self(nvic.clone())))
+            Some(Box::new(Self))
         } else {
             None
         }
@@ -259,11 +259,11 @@ impl NvicWrapper {
 
 impl Peripheral for NvicWrapper {
     fn read(&mut self, sys: &System, offset: u32) -> u32 {
-        self.0.borrow_mut().read(sys, offset)
+        sys.p.nvic.borrow_mut().read(sys, offset)
     }
 
     fn write(&mut self, sys: &System, offset: u32, value: u32) {
-        self.0.borrow_mut().write(sys, offset, value)
+        sys.p.nvic.borrow_mut().write(sys, offset, value)
     }
 }
 

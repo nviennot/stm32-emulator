@@ -108,9 +108,6 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
 
             if trace_instructions {
                 info!("{}", disassemble_instruction(&diassembler, uc, pc));
-
-                    STOP_REQUESTED.store(true, Ordering::Relaxed);
-                    uc.emu_stop().unwrap();
             }
 
             if n % interrupt_period as u64 == 0 {

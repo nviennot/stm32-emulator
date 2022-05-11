@@ -459,6 +459,7 @@ dependencies = [
  "log",
  "num_enum",
  "png",
+ "regex",
  "sdl2",
  "serde",
  "serde_yaml",

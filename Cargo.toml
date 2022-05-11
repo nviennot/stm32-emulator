@@ -26,6 +26,8 @@ num_enum = "0.5"
 capstone = "0.11"
 png = "0.17"
 
+regex = "1"
+
 sdl2 = {version="0.35", features=["bundled"]}
 
 [patch.crates-io]
