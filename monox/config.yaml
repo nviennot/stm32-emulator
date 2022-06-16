@@ -22,15 +22,14 @@ framebuffers:
     height: 320
     mode: rgb565
     sdl: true
-    #image:
-    #  file: framebuffer.png
+  - name: LCD
+    width: 3840
+    height: 2400
+    mode: gray8
+    sdl: true
+    downscale: 8
 peripherals:
   software_spi:
-    - name: SW_SPI_LCD
-      cs: PA15
-      clk: PC7
-      miso: PC6
-      mosi: PG3
     - name: SW_SPI_TOUCH
       cs: PD12
       clk: PD13
@@ -57,8 +56,7 @@ devices:
       cmd_addr_bit: 0x20000
   lcd:
     - peripheral: SPI1
-      width: 3840
-      height: 2400
+      framebuffer: LCD
 patches:
   # NOP systick delay
   - start: 0x0800b656

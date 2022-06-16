@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::{io::BufWriter, fs::File};
-use super::{FramebufferConfig, Framebuffer, Color};
+use super::{FramebufferConfig, Framebuffer, RGB565};
 use anyhow::Result;
-
 
 pub struct Image {
     pub config: FramebufferConfig,
-    pub framebuffer: Vec<Color>,
+    pub framebuffer: Vec<RGB565>,
 }
 
 impl Image {
@@ -55,12 +54,17 @@ impl Image {
 
 // Note: Drop doesn't work because I think Unicorn doesn't cleanup closures correctly.
 
-impl Framebuffer for Image {
+impl<Color> Framebuffer<Color> for Image {
     fn get_config(&self) -> &FramebufferConfig {
         &self.config
     }
 
     fn get_pixels(&mut self) -> &mut [Color] {
-        &mut self.framebuffer
+        unsafe {
+            std::slice::from_raw_parts_mut(
+                self.framebuffer.as_mut_ptr() as *mut Color,
+                self.framebuffer.len() * std::mem::size_of::<RGB565>() / std::mem::size_of::<Color>(),
+            )
+        }
     }
 }

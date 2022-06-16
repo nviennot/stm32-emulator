@@ -85,7 +85,7 @@ impl ExtDevicesConfig {
             .collect::<Result<_>>()?;
 
         let lcds = self.lcd.unwrap_or_default().into_iter()
-            .map(|config| Lcd::new(config).map(RefCell::new).map(Rc::new))
+            .map(|config| Lcd::new(config, framebuffers).map(RefCell::new).map(Rc::new))
             .collect::<Result<_>>()?;
 
         let touchscreens = self.touchscreen.unwrap_or_default().into_iter()

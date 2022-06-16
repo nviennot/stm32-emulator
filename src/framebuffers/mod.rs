@@ -17,6 +17,7 @@ pub struct FramebufferConfig {
     pub mode: String,
     pub image: Option<ImageBackendConfig>,
     pub sdl: Option<bool>,
+    pub downscale: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,9 +25,11 @@ pub struct ImageBackendConfig {
     pub file: String,
 }
 
-pub type Color = u16; // RGB565 for now
+pub type RGB565 = u16;
+pub type RGB888 = u32;
+//pub type Gray8 = u8;
 
-pub trait Framebuffer {
+pub trait Framebuffer<Color> {
     fn get_config(&self) -> &FramebufferConfig;
 
     /// Returns a mutable reference to the framebuffer
@@ -58,9 +61,9 @@ impl Framebuffers {
         Self { images, sdls }
     }
 
-    pub fn get(&self, name: &str) -> Result<Rc<RefCell<dyn Framebuffer>>> {
-        let images = self.images.iter().map(|fb| fb.clone() as Rc<RefCell<dyn Framebuffer>>);
-        let sdls = self.sdls.iter().map(|fb| fb.clone() as Rc<RefCell<dyn Framebuffer>>);
+    pub fn get<C>(&self, name: &str) -> Result<Rc<RefCell<dyn Framebuffer<C>>>> {
+        let images = self.images.iter().map(|fb| fb.clone() as Rc<RefCell<dyn Framebuffer<C>>>);
+        let sdls = self.sdls.iter().map(|fb| fb.clone() as Rc<RefCell<dyn Framebuffer<C>>>);
         let fb = images.chain(sdls).find(|fb| fb.borrow().get_config().name == name);
         fb.ok_or(anyhow::anyhow!("Cannot find framebuffer {}", name))
     }

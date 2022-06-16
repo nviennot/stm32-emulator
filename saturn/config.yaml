@@ -24,6 +24,18 @@ framebuffers:
     sdl: true
     #image:
     #  file: framebuffer.png
+  #- name: LCD
+  #  width: 3840
+  #  height: 2400
+  #  mode: gray8
+  #  sdl: true
+peripherals:
+  software_spi:
+    - name: SW_SPI_LCD
+      cs: PA15
+      clk: PC7
+      miso: PC6
+      mosi: PG3
 devices:
   spi_flash:
     - peripheral: SPI3
@@ -49,6 +61,9 @@ devices:
           data: [0x00, 0x93, 0x30, 0x93]
         - cmd: 0x04 # device id
           data: [0x30, 0x54, 0x80, 0x66]
+  #lcd:
+  #  - peripheral: SW_SPI_LCD
+  #    framebuffer: LCD
 patches:
   # NOP a delay_us()
   - start: 0x08051e98

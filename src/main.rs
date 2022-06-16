@@ -11,7 +11,6 @@ mod framebuffers;
 use std::io::prelude::*;
 use std::sync::atomic::Ordering::Relaxed;
 use clap::Parser;
-use clap::AppSettings;
 use anyhow::{Result, Context};
 use env_logger::fmt::WriteStyle;
 use log::LevelFilter;
@@ -26,9 +25,6 @@ extern crate log;
 
 /// STM32 Emulator
 #[derive(Parser, Debug)]
-#[clap(
-    global_setting(AppSettings::DeriveDisplayOrder)
-)]
 pub struct Args {
     /// Config file
     config: String,

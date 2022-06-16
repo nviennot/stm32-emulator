@@ -8,18 +8,9 @@ use sdl2::{
     event::Event,
 };
 
-use super::{FramebufferConfig, Framebuffer, Color, sdl_engine::SDL};
+use super::{FramebufferConfig, Framebuffer, sdl_engine::SDL};
 
 pub const REFRESH_DURATION_MILLIS: u64 = 20;
-
-/*
-lazy_static! {
-    [pub] static ref NAME_1: TYPE_1 = EXPR_1;
-    [pub] static ref NAME_2: TYPE_2 = EXPR_2;
-    ...
-    [pub] static ref NAME_N: TYPE_N = EXPR_N;
-}
-*/
 
 pub struct Sdl {
     pub config: FramebufferConfig,
@@ -33,16 +24,44 @@ pub struct Sdl {
 
 impl Sdl {
     pub fn new(config: FramebufferConfig) -> Self {
-        let canvas = SDL.lock().unwrap().new_canvas(&config.name, config.width.into(), config.height.into());
+        let format = match config.mode.as_str() {
+            "rgb565" => PixelFormatEnum::RGB565,
+            // can't figure out how to do grayscale. See palette below.
+            // "gray8" => PixelFormatEnum::Index8,
+            "gray8" => PixelFormatEnum::RGB888,
+            _ => unimplemented!(),
+        };
+        let mut canvas = SDL.lock().unwrap().new_canvas(
+            &config.name,
+            config.width.into(),
+            config.height.into()
+        );
         let framebuffer = Surface::new(
             config.width.into(),
             config.height.into(),
-            PixelFormatEnum::RGB565,
+            format,
         ).unwrap();
+
+        /*
+        // Can't figure out how to use Index8.
+        let colors: Vec<_> = (0..0xff).map(|u| Color::RGB(u, u, u)).collect();
+        let palette = Palette::with_colors(&colors).unwrap();
+        framebuffer.set_palette(&palette).unwrap();
+        */
+
+        if let Some(downscale) = config.downscale {
+            canvas.window_mut().set_size(
+                config.width as u32 / downscale,
+                config.height as u32 / downscale,
+            ).unwrap();
+        }
+
+        canvas.window_mut().raise();
 
         let last_redraw = Instant::now();
         let need_redraw = false;
         let window_id = canvas.window().id();
+
         let touch_position = None;
 
         Self { config, canvas, framebuffer, need_redraw, last_redraw, window_id, touch_position }
@@ -94,7 +113,7 @@ impl Sdl {
 }
 
 
-impl Framebuffer for Sdl {
+impl<Color> Framebuffer<Color> for Sdl {
     fn get_config(&self) -> &FramebufferConfig {
         &self.config
     }

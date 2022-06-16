@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::{convert::TryFrom, collections::VecDeque};
+use std::{convert::TryFrom, collections::VecDeque, rc::Rc, cell::RefCell};
 
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::system::System;
+use crate::{system::System, framebuffers::{Framebuffers, Framebuffer, RGB888}};
 use super::ExtDevice;
 
 #[derive(Debug, Deserialize)]
 pub struct LcdConfig {
     pub peripheral: String,
-    pub width: u16,
-    pub height: u16,
+    pub framebuffer: String,
 }
 
 pub struct Lcd {
@@ -20,9 +19,11 @@ pub struct Lcd {
     name: String,
 
     current_position: Point,
-    framebuffer_raw: Vec<u8>,
+    width: u16,
+    height: u16,
+    // Can't figure out how to do grayscale with sdl2. See in sdl.rs.
+    framebuffer: Rc<RefCell<dyn Framebuffer<RGB888>>>,
 
-    //reply: Option<Reply>,
     cmd: Option<(Command, Vec<u8>)>,
     drawing: bool,
 }
@@ -34,53 +35,49 @@ pub struct Point {
 }
 
 impl Lcd {
-    pub fn new(config: LcdConfig) -> Result<Self> {
-        let mut framebuffer_raw = Vec::new();
-        framebuffer_raw.resize(config.height as usize * config.width as usize, 0);
+    pub fn new(config: LcdConfig, framebuffers: &Framebuffers) -> Result<Self> {
+        let framebuffer = framebuffers.get(&config.framebuffer)?;
+        let width = framebuffer.borrow().get_config().width;
+        let height = framebuffer.borrow().get_config().height;
 
         Ok(Self {
             name: "".to_string(),
             config,
             current_position: Point::default(),
-            framebuffer_raw,
+            framebuffer,
+            width,
+            height,
             cmd: None,
             drawing: false,
         })
     }
 
-    pub fn _write_framebuffer_to_file(&self, file: &str) -> Result<()> {
-        use std::io::prelude::*;
-        let mut f = std::fs::File::create(file)?;
-        f.write_all(&self.framebuffer_raw)?;
-
-        info!("Wrote framebuffer to {}", file);
-        Ok(())
-    }
-
     #[inline]
-    fn get_framebuffer_raw_pixel(&mut self, x: u16, y: u16) -> &mut u8 {
-        let x = x.min(self.config.width-1);
-        let y = y.min(self.config.height-1);
-        let x = x as usize;
-        let y = y as usize;
-        &mut self.framebuffer_raw[(x + y * self.config.width as usize)]
+    fn get_framebuffer_pixel_index(&mut self, x: u16, y: u16) -> usize {
+        let x = x.min(self.width-1) as usize;
+        let y = y.min(self.height-1) as usize;
+        x + y * self.width as usize
     }
 
     fn draw_pixel(&mut self, c: u8) {
         let Point { mut x, mut y } = self.current_position;
-        let c = c << 4;
-        *self.get_framebuffer_raw_pixel(x, y) = c;
+        let i = self.get_framebuffer_pixel_index(x, y);
+        let c = ((c as u32) << 4) | c as u32;
+        let c = (c << 16) | (c << 8) | c;
+        self.framebuffer.borrow_mut().get_pixels()[i] = c;
 
-        if x == 0 {
-            debug!("{} p={},{} v={:02x}", self.name, x, y, c);
+        /*
+        if (x+y) % 100 == 0 {
+            debug!("{} p={},{} v={:01x}", self.name, x, y, c);
         }
+        */
 
         x += 1;
-        if x >= self.config.width {
+        if x >= self.width {
             x = 0;
             y += 1;
 
-            if y >= self.config.height {
+            if y >= self.height {
                 y = 0;
             }
         }
@@ -98,20 +95,6 @@ impl ExtDevice<(), u8> for Lcd {
     }
 
     fn read(&mut self, _sys: &System, _addr: ()) -> u8 {
-        /*
-        match self.reply.as_mut() {
-            Some(Reply::Data(d)) => {
-                d.pop_front().unwrap_or_default()
-            }
-
-            Some(Reply::FileContent(addr)) => {
-                let c = self.content[*addr];
-                *addr = (*addr + 1) % self.config.size;
-                c
-            }
-            None => 0,
-        }
-        */
         0
     }
 

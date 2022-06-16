@@ -161,6 +161,9 @@ pub fn run_emulator(config: Config, svd_device: SvdDevice, args: Args) -> Result
                     p.nvic.borrow_mut().return_from_interrupt(&sys);
                     p.nvic.borrow_mut().run_pending_interrupts(&sys, vector_table_addr);
                 }
+                3 => {
+                    error!("intr_hook intno={:08x}", exception);
+                }
                 _ => {
                     error!("intr_hook intno={:08x}", exception);
                     std::process::exit(1);

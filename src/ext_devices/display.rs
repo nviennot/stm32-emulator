@@ -5,7 +5,7 @@ use std::{convert::TryFrom, collections::VecDeque, rc::Rc, cell::RefCell};
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::{system::System, util::{Rect, Point}, framebuffers::{Framebuffer, Framebuffers}};
+use crate::{system::System, util::{Rect, Point}, framebuffers::{Framebuffer, Framebuffers, RGB565}};
 use super::ExtDevice;
 
 #[derive(Debug, Deserialize)]
@@ -33,7 +33,7 @@ pub struct Display {
     current_position: Point,
     width: u16,
     height: u16,
-    framebuffer: Rc<RefCell<dyn Framebuffer>>,
+    framebuffer: Rc<RefCell<dyn Framebuffer<RGB565>>>,
 }
 
 impl Display {

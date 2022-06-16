@@ -7,13 +7,13 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use serde::Deserialize;
 
-use crate::framebuffers::{Framebuffer, Framebuffers};
+use crate::framebuffers::{Framebuffer, Framebuffers, RGB565};
 use crate::peripherals::gpio::{GpioPorts, Pin};
 use crate::system::System;
 
 use super::ExtDevice;
 
-// Implements a ASD7846 controller
+// Implements a ADS7846 controller
 
 #[derive(Debug, Deserialize, Default)]
 pub struct TouchscreenConfig {
@@ -30,7 +30,7 @@ pub struct Touchscreen {
     pub config: TouchscreenConfig,
     name: String,
 
-    framebuffer: Rc<RefCell<dyn Framebuffer>>,
+    framebuffer: Rc<RefCell<dyn Framebuffer<RGB565>>>,
     reply: Option<VecDeque<u8>>,
 }
 

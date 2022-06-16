@@ -12,6 +12,7 @@ pub struct Spi {
     pub name: String,
     pub cr1: u32,
     pub rx_buffer: u32,
+    pub ready_toggle: bool,
     pub ext_device: Option<Rc<RefCell<dyn ExtDevice<(), u8>>>>,
 }
 
@@ -43,7 +44,8 @@ impl Peripheral for Spi {
                 // SR register
                 // receive buffer not empty
                 // transmit buffer empty
-                0b11
+                self.ready_toggle = !self.ready_toggle;
+                if self.ready_toggle { 0b11 } else { 0 }
             }
             0x000C => {
                 // DR register
