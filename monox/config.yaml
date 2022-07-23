@@ -58,6 +58,7 @@ devices:
     - peripheral: SPI1
       framebuffer: LCD
 patches:
+  # Generate these with ./asm.py
   # NOP systick delay
   - start: 0x0800b656
     data: [0x70, 0x47]

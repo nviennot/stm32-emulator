@@ -30,5 +30,5 @@ regex = "1"
 
 sdl2 = {version="0.35", features=["bundled"]}
 
-[patch.crates-io]
-unicorn-engine = { path = "unicorn" }
+#[patch.crates-io]
+#unicorn-engine = { path = "unicorn" }

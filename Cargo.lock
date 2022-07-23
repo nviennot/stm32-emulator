@@ -294,6 +294,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "pkg-config"
+version = "0.3.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1df8c4ec4b0627e53bdf214615ad287367e482558cf84b109250b37464dc03ae"
+
+[[package]]
 name = "png"
 version = "0.17.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -560,12 +566,15 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 
 [[package]]
 name = "unicorn-engine"
-version = "2.0.0-rc7"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f23e61b1c16090ec75a57656f8e7337a8df1e438d4e616b99ce679ab26b8591e"
 dependencies = [
  "bitflags",
  "cc",
  "cmake",
  "libc",
+ "pkg-config",
 ]
 
 [[package]]

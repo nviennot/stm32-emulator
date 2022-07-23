@@ -3,9 +3,9 @@ cpu:
   vector_table: 0x08020000
   #id: 0x1234_5678_BABE_1234_5678_BABE
 regions:
-  - name: NULL_forgiveness
-    start: 0x00000000
-    size: 4096
+  #- name: NULL_forgiveness
+  #start: 0x00000000
+  #size: 4096
   - name: ROM
     start: 0x08020000
     load: saturn-v4.4.3-pj-v5.bin
@@ -65,6 +65,7 @@ devices:
   #  - peripheral: SW_SPI_LCD
   #    framebuffer: LCD
 patches:
+  # Generate these with ./asm.py
   # NOP a delay_us()
   - start: 0x08051e98
     data: [0x70, 0x47]
