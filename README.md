@@ -3,18 +3,85 @@ STM32 Emulator
 
 The goal is to simulate 3D printers.
 
-There's some existing work in the STM32 emulation space:
-* [Qiling](https://qiling.io/2022/04/14/intro/) emulates all kinds of devices,
-  including STM32s. It would be a good candidate, but wasn't fitting the bill
-  because 1) it's written in Python, and is very slow. 2) It doesn't support
-  what I really want which is tracing in registers that I care about.
-* [Renode](https://renode.io/): Emulate all sorts of devices, written in C#.
-  The configuration files are finicky, and it's overall pretty slow. I didn't
-  like it.
-* [Tinylabs' flexsoc-cm3](https://github.com/tinylabs/flexsoc_cm3): This is
-  Elliot's project to have the real stm32 peripherals to be accessible directly
-  to a host that is emulating a CPU. I haven't tried it, but it looks promising.
-* Use GDB and single step everything. That might be too slow.
+### Emulating the Elegoo Saturn
+
+In the [configuration file](https://github.com/nviennot/stm32-emulator/blob/main/saturn/config.yaml),
+we provide an SVD file that provides all the peripheral register addresses for
+the STM32F407. We then configure various memory regions, framebuffers, and
+devices. We also patch two functions in the firmware just to speed things up as
+we don't need to wait for our devices to initialize.
+
+We also specify the firmware binary `saturn-v4.4.3-pj-v5.bin`, and that's the
+official binary downloaded from the Elegoo website.  The `ext-flash.bin` is the
+content of the external SPI flash dumped from the Saturn board itself (I cheated
+a bit here, I wish we could have just used the downloaded version, it wasn't
+working, and I was in a hurry).
+
+#### Youtube demo (click on the image)
+
+[![Saturn](readme-assets/youtube-saturn.png)](https://www.youtube.com/watch?v=Uc8eq4JsJyM)
+
+#### Try it out
+
+```
+$ git clone https://github.com/nviennot/stm32-emulator.git
+$ cd stm32-emulator/saturn
+$ cargo run --release -- config.yaml -v
+```
+
+#### The output
+
+On the following we see some of the output.
+We can see how the firmware initialize the display for example. These are
+display commands we need to reproduce when implementing our own firmware.
+We can also see that it's emitting something on the UART.
+We also see its interaction with the SPI Flash.
+
+![Saturn trace](readme-assets/saturn-trace.png)
+
+We can also see that the firmware has issues. The init routines are messy from
+what I've seen in the decompilation. In the emulation, we can see NULL pointer
+exceptions, GPIO being re-configured multiple times.
+On the STM32, address 0 is actually mapped to the flash, and so the memory
+accesses in the first 4K don't actually fail, so failures of this nature go
+silent.
+
+![Saturn NULL](readme-assets/saturn-null.png)
+
+We can see how the GPIOs are getting configured:
+
+![Saturn GPIO](readme-assets/saturn-gpio.png)
+
+We can see how a specific peripheral gets initialized, like SPI2. That
+information is coming right off the SVD file.
+
+![Saturn SPI2](readme-assets/saturn-spi2.png)
+
+We can also do instruction tracing with `-vvvv`:
+
+![Saturn instructions](readme-assets/saturn-inst.png)
+
+Overall, the emulator is useful to understand what the firmware is doing without
+having the real printer on hand, which will be helpful in supporting additional
+printers for TurboResin.
+
+It would be fun to implement a GDB server provided by the emulator, this way we
+could use GDB to inspect the runtime, and even connect a decompiler like Ghirda
+or IDA Pro.
+
+### Emulating the Anycubic Mono X
+
+#### Youtube demo (click on the image)
+
+[![MonoX](readme-assets/youtube-monox.png)](https://www.youtube.com/watch?v=VyB3ru0u4Go)
+
+#### Try it out
+
+```
+$ git clone https://github.com/nviennot/stm32-emulator.git
+$ cd stm32-emulator/monox
+$ cargo run --release -- config.yaml -v
+```
 
 ### Emulator Features
 
@@ -108,85 +175,20 @@ There's some existing work in the STM32 emulation space:
   speed. That's much faster than the other emulators which are at least 10x
   slower, if not more.
 
-### Emulating the Elegoo Saturn
+### Existing work
 
-In the [configuration file](https://github.com/nviennot/stm32-emulator/blob/main/saturn/config.yaml),
-we provide an SVD file that provides all the peripheral register addresses for
-the STM32F407. We then configure various memory regions, framebuffers, and
-devices. We also patch two functions in the firmware just to speed things up as
-we don't need to wait for our devices to initialize.
-
-We also specify the firmware binary `saturn-v4.4.3-pj-v5.bin`, and that's the
-official binary downloaded from the Elegoo website.  The `ext-flash.bin` is the
-content of the external SPI flash dumped from the Saturn board itself (I cheated
-a bit here, I wish we could have just used the downloaded version, it wasn't
-working, and I was in a hurry).
-
-#### Youtube demo (click on the image)
-
-[![Saturn](youtube-saturn.png)](https://www.youtube.com/watch?v=Uc8eq4JsJyM)
-
-#### Try it out
-
-```
-$ git clone https://github.com/nviennot/stm32-emulator.git
-$ cd stm32-emulator/saturn
-$ cargo run --release -- config.yaml -v
-```
-
-#### The output
-
-On the following we see some of the output.
-We can see how the firmware initialize the display for example. These are
-display commands we need to reproduce when implementing our own firmware.
-We can also see that it's emitting something on the UART.
-We also see its interaction with the SPI Flash.
-
-![Saturn trace](saturn-trace.png)
-
-We can also see that the firmware has issues. The init routines are messy from
-what I've seen in the decompilation. In the emulation, we can see NULL pointer
-exceptions, GPIO being re-configured multiple times.
-On the STM32, address 0 is actually mapped to the flash, and so the memory
-accesses in the first 4K don't actually fail, so failures of this nature go
-silent.
-
-![Saturn NULL](saturn-null.png)
-
-We can see how the GPIOs are getting configured:
-
-![Saturn GPIO](saturn-gpio.png)
-
-We can see how a specific peripheral gets initialized, like SPI2. That
-information is coming right off the SVD file.
-
-![Saturn SPI2](saturn-spi2.png)
-
-We can also do instruction tracing with `-vvvv`:
-
-![Saturn instructions](saturn-inst.png)
-
-Overall, the emulator is useful to understand what the firmware is doing without
-having the real printer on hand, which will be helpful in supporting additional
-printers for TurboResin.
-
-It would be fun to implement a GDB server provided by the emulator, this way we
-could use GDB to inspect the runtime, and even connect a decompiler like Ghirda
-or IDA Pro.
-
-### Emulating the Anycubic Mono X
-
-#### Youtube demo (click on the image)
-
-[![MonoX](youtube-monox.png)](https://www.youtube.com/watch?v=VyB3ru0u4Go)
-
-#### Try it out
-
-```
-$ git clone https://github.com/nviennot/stm32-emulator.git
-$ cd stm32-emulator/monox
-$ cargo run --release -- config.yaml -v
-```
+There's some existing work in the STM32 emulation space:
+* [Qiling](https://qiling.io/2022/04/14/intro/) emulates all kinds of devices,
+  including STM32s. It would be a good candidate, but wasn't fitting the bill
+  because 1) it's written in Python, and is very slow. 2) It doesn't support
+  what I really want which is tracing in registers that I care about.
+* [Renode](https://renode.io/): Emulate all sorts of devices, written in C#.
+  The configuration files are finicky, and it's overall pretty slow. I didn't
+  like it.
+* [Tinylabs' flexsoc-cm3](https://github.com/tinylabs/flexsoc_cm3): This is
+  Elliot's project to have the real stm32 peripherals to be accessible directly
+  to a host that is emulating a CPU. I haven't tried it, but it looks promising.
+* Use GDB and single step everything. That might be too slow.
 
 License
 -------
