@@ -13,7 +13,15 @@ This emulator is done in the context of my work on [reverse engineering 3D
 printers](https://github.com/nviennot/reversing-mono4k) so I can write a Rust
 firmware for 3D printers, [Turbo Resin](https://github.com/nviennot/turbo-resin).
 
-### Emulating the Elegoo Saturn
+## Table of content
+
+* [Emulating the Elegoo Saturn](#emulating-the-elegoo-saturn)
+* [Emulating the Anycubic Mono X](#emulating-the-anycubic-mono-x)
+* [Features](#emulator-features)
+* [Existing Work](#existing-work)
+
+
+## Emulating the Elegoo Saturn
 
 In the [configuration file](https://github.com/nviennot/stm32-emulator/blob/main/saturn/config.yaml),
 we provide an SVD file that provides all the peripheral register addresses for
@@ -27,11 +35,11 @@ content of the external SPI flash dumped from the Saturn board itself (I cheated
 a bit here, I wish we could have just used the downloaded version, it wasn't
 working, and I was in a hurry).
 
-#### Youtube demo (click on the image)
+### Youtube demo (click on the image)
 
 [![Saturn](readme-assets/youtube-saturn.png)](https://www.youtube.com/watch?v=Uc8eq4JsJyM)
 
-#### Try it out
+### Try it out
 
 ```
 $ git clone https://github.com/nviennot/stm32-emulator.git
@@ -39,7 +47,7 @@ $ cd stm32-emulator/saturn
 $ cargo run --release -- config.yaml -v
 ```
 
-#### The output
+### The output
 
 On the following we see some of the output.
 We can see how the firmware initialize the display for example. These are
@@ -79,13 +87,13 @@ It would be fun to implement a GDB server provided by the emulator, this way we
 could use GDB to inspect the runtime, and even connect a decompiler like Ghirda
 or IDA Pro.
 
-### Emulating the Anycubic Mono X
+## Emulating the Anycubic Mono X
 
-#### Youtube demo (click on the image)
+### Youtube demo (click on the image)
 
 [![MonoX](readme-assets/youtube-monox.png)](https://www.youtube.com/watch?v=VyB3ru0u4Go)
 
-#### Try it out
+### Try it out
 
 ```
 $ git clone https://github.com/nviennot/stm32-emulator.git
@@ -93,7 +101,9 @@ $ cd stm32-emulator/monox
 $ cargo run --release -- config.yaml -v
 ```
 
-### Emulator Features
+---
+
+## Emulator Features
 
 * The ARM instructions are emulated via Unicorn (a Qemu fork). We can register
   hooks on memory read/write given memory range. This gives us a way to provide
@@ -185,7 +195,7 @@ $ cargo run --release -- config.yaml -v
   speed. That's much faster than the other emulators which are at least 10x
   slower, if not more.
 
-### Existing work
+## Existing work
 
 There's some existing work in the STM32 emulation space:
 * [Qiling](https://qiling.io/2022/04/14/intro/) emulates all kinds of devices,
