@@ -1,7 +1,17 @@
 STM32 Emulator
 ==============
 
-The goal is to simulate 3D printers.
+The goal is to simulate 3D printers, but any sort of stm32 microcontroller firmware should work.
+
+The emulator is configured via a configuration file, see example
+[here](https://github.com/nviennot/stm32-emulator/blob/main/saturn/config.yaml).
+
+In the following example, I show how to emulate the 3D printer of the Elegoo
+Saturn and Anycubic MonoX unmodified firmwares downloaded from the vendor website.
+
+This emulator is done in the context of my work on [reverse engineering 3D
+printers](https://github.com/nviennot/reversing-mono4k) so I can write a Rust
+firmware for 3D printers, [Turbo Resin](https://github.com/nviennot/turbo-resin).
 
 ### Emulating the Elegoo Saturn
 
