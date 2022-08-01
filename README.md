@@ -198,6 +198,8 @@ $ cargo run --release -- config.yaml -v
 ## Existing work
 
 There's some existing work in the STM32 emulation space:
+* [Mini404](https://github.com/vintagepc/MINI404) emulates the Prusa Mini. Quite
+  a feat. See the project's hw/arm/prusa for the peripherals.
 * [Qiling](https://qiling.io/2022/04/14/intro/) emulates all kinds of devices,
   including STM32s. It would be a good candidate, but wasn't fitting the bill
   because 1) it's written in Python, and is very slow. 2) It doesn't support
